@@ -12,12 +12,17 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 public abstract class BaseEntity {
+    /** 主键 ID。 */
     @TableId(type = IdType.ASSIGN_ID)
     private Long id;
+    /** 创建时间。 */
     private LocalDateTime ctime;
+    /** 更新时间。 */
     private LocalDateTime utime;
+    /** 有效标识：1-有效，0-无效。 */
     @TableLogic(value = "1", delval = "0")
     private Integer valid;
+    /** 乐观锁版本。 */
     @Version
     private Integer version;
 }

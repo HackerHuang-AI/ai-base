@@ -8,12 +8,19 @@ import lombok.Setter;
 @Setter
 @TableName("organization_structure_node")
 public class OrganizationStructureNodeEntity extends BaseEntity {
+    /** 所属租户 ID。 */
     private Long tenantId;
+    /** 组织架构 ID。 */
     private Long structureId;
+    /** 组织信息 ID。 */
     private Long organizationId;
+    /** 父架构节点 ID，NULL 表示唯一根节点。 */
     private Long parentNodeId;
+    /** 同级节点排序值，升序排列。 */
     private Integer sortNo;
+    /** 创建人用户 ID。 */
     private Long creatorUserId;
+    /** 最后修改人用户 ID。 */
     private Long updaterUserId;
 }
 
