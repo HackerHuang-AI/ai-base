@@ -1,3 +1,6 @@
+CREATE DATABASE IF NOT EXISTS `ai_base` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `ai_base`;
+
 CREATE TABLE `tenant` (
     `id` BIGINT UNSIGNED NOT NULL COMMENT '租户 ID',
     `tenant_code` VARCHAR(64) NOT NULL COMMENT '租户编码',

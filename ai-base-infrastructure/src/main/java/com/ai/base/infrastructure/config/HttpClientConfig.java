@@ -1,10 +1,12 @@
 package com.ai.base.infrastructure.config;
 
+import okhttp3.ConnectionPool;
 import okhttp3.OkHttpClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 @Configuration
 public class HttpClientConfig {
@@ -12,7 +14,10 @@ public class HttpClientConfig {
     public OkHttpClient okHttpClient() {
         return new OkHttpClient.Builder()
                 .connectTimeout(Duration.ofSeconds(5))
-                .readTimeout(Duration.ofSeconds(10))
+                .readTimeout(Duration.ofSeconds(30))
+                .writeTimeout(Duration.ofSeconds(30))
+                .connectionPool(new ConnectionPool(10, 5, TimeUnit.MINUTES))
+                .retryOnConnectionFailure(true)
                 .build();
     }
 }

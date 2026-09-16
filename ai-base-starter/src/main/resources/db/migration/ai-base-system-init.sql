@@ -1,3 +1,6 @@
+CREATE DATABASE IF NOT EXISTS `ai_base` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `ai_base`;
+
 CREATE TABLE `permission` (
     `id` BIGINT UNSIGNED NOT NULL COMMENT '权限点 ID',
     `permission_code` VARCHAR(128) NOT NULL COMMENT '权限点编码',
