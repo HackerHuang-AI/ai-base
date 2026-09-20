@@ -58,6 +58,10 @@
             <artifactId>dubbo-configcenter-nacos</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-metadata-report-nacos</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.ai.base</groupId>
             <artifactId>ai-base-client</artifactId>
         </dependency>
