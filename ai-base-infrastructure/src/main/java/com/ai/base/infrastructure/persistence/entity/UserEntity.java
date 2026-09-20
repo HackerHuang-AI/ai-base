@@ -8,8 +8,12 @@ import lombok.Setter;
 @Setter
 @TableName("base_user")
 public class UserEntity extends BaseEntity {
-    /** SSO 用户全局唯一标识。 */
-    private String ssoUserId;
+    /** 全局用户 ID，跨库分表关联使用。 */
+    private String userId;
+    /** 手机号。 */
+    private String mobile;
+    /** 邮箱。 */
+    private String email;
     /** 账号名。 */
     private String username;
     /** 用户姓名。 */

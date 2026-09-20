@@ -2,8 +2,8 @@
 
 ## 模型边界
 
-- `base_user` 是平台全局身份，以全局唯一的 `sso_user_id` 映射 SSO 用户。
-- `tenant` 是个人空间和企业租户的统一数据隔离边界。一个用户最多拥有一个个人空间，可加入多个企业租户。
+- `base_user.id` 是单库本地物理主键；`base_user.user_id` 是全局、不可变的业务用户 ID，跨库分表和跨服务关联只使用 `user_id`。
+- `tenant.id` 是单库本地物理主键；`tenant.tenant_id` 是全局、不可变的业务租户 ID，所有租户级资源和跨服务关联只使用 `tenant_id`。一个用户最多拥有一个个人空间，可加入多个企业租户。
 - `tenant_user` 只表达成员关系；所有租户（含个人空间）均通过它建立用户准入关系，用户能否进入租户与用户在租户内有什么权限分离。
 - 个人空间不能直接转换为企业租户；创建企业租户后，资源需要由用户显式迁移或复制。
 - 组织、岗位和角色语义分离：组织描述协作单元，岗位描述任职，角色描述系统权限。
@@ -36,11 +36,11 @@ base_user 1 --- N platform_user_role N --- 1 platform_role
 
 | 表 | 职责 |
 | --- | --- |
-| `tenant` | 个人空间或企业租户；企业租户必须填写唯一统一社会信用代码，不关联单一自然人所有者。 |
-| `tenant_info` | 企业租户的联系人、地址和简介；个人空间不创建记录。 |
-| `base_user` | 平台全局用户，不保存 `tenant_id`。 |
-| `user_info` | 用户平台级低频资料。 |
-| `tenant_user` | 用户是否为租户成员及成员状态，不承载角色或权限。 |
+| `tenant` | 个人空间或企业租户；以全局 `tenant_id` 对外关联，企业租户必须填写唯一统一社会信用代码，不关联单一自然人所有者。 |
+| `tenant_info` | 企业租户的联系人、地址和简介；以 `tenant_id` 关联，个人空间不创建记录。 |
+| `base_user` | 平台全局用户；以全局 `user_id` 对外关联，手机号和邮箱保存在本表。 |
+| `user_info` | 用户平台级低频资料，以 `user_id` 关联。 |
+| `tenant_user` | 以 `tenant_id + user_id` 表达成员关系及状态，不承载角色或权限。 |
 
 ## 组织与任职
 
@@ -76,9 +76,9 @@ base_user 1 --- N platform_user_role N --- 1 platform_role
 
 ## 归属和鉴权约定
 
-后续所有租户业务资源必须保存非空 `tenant_id`，以它作为数据隔离与计费归属；用户创建或修改的资源还应保存 `creator_user_id`、`updater_user_id`，可转交资源额外保存 `owner_user_id`。
+后续所有租户业务资源必须保存非空的全局 `tenant_id`，以它作为数据隔离与计费归属；用户创建或修改的资源还应保存全局 `creator_user_id`、`updater_user_id`，可转交资源额外保存全局 `owner_user_id`。禁止用 `base_user.id`、`tenant.id` 等本地物理主键作为跨表、跨库或跨服务关联字段。
 
-认证后，服务端使用 `user_id + tenant_id` 确认有效 `tenant_user`，再加载有效期内的 `user_role` 和 `organization_user_role`。业务查询必须使用服务端确认的 `tenant_id`，不得信任客户端任意传入的租户 ID。平台后台能力只使用独立的 `platform_user_role` 授权。
+认证后，服务端使用全局 `user_id + tenant_id` 确认有效 `tenant_user`，再加载有效期内的 `user_role` 和 `organization_user_role`。业务查询必须使用服务端确认的 `tenant_id`，不得信任客户端任意传入的租户 ID。平台后台能力只使用独立的 `platform_user_role` 授权。
 
 ## 跨表约束
 

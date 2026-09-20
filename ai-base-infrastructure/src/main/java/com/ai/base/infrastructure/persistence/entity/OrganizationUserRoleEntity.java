@@ -10,8 +10,12 @@ import java.time.LocalDateTime;
 @Setter
 @TableName("organization_user_role")
 public class OrganizationUserRoleEntity extends BaseEntity {
-    /** 组织任职关系 ID。 */
-    private Long organizationUserId;
+    /** 全局租户 ID。 */
+    private String tenantId;
+    /** 全局用户 ID。 */
+    private String userId;
+    /** 组织信息 ID。 */
+    private Long organizationId;
     /** 角色 ID。 */
     private Long roleId;
     /** 授权生效时间。 */

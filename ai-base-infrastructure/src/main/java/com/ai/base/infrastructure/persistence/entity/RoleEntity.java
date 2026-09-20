@@ -8,8 +8,8 @@ import lombok.Setter;
 @Setter
 @TableName("role")
 public class RoleEntity extends BaseEntity {
-    /** 所属租户 ID。 */
-    private Long tenantId;
+    /** 所属全局租户 ID。 */
+    private String tenantId;
     /** 角色编码。 */
     private String roleCode;
     /** 角色名称。 */

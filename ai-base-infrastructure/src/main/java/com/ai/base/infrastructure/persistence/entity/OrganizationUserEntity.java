@@ -10,12 +10,12 @@ import java.time.LocalDateTime;
 @Setter
 @TableName("organization_user")
 public class OrganizationUserEntity extends BaseEntity {
-    /** 所属租户 ID。 */
-    private Long tenantId;
+    /** 所属全局租户 ID。 */
+    private String tenantId;
     /** 组织信息 ID。 */
     private Long organizationId;
-    /** 租户成员关系 ID。 */
-    private Long tenantUserId;
+    /** 全局用户 ID。 */
+    private String userId;
     /** 岗位 ID。 */
     private Long positionId;
     /** 任职生效时间。 */
@@ -24,9 +24,9 @@ public class OrganizationUserEntity extends BaseEntity {
     private LocalDateTime effectiveEndTime;
     /** 状态：1-在职，2-已结束。 */
     private Integer status;
-    /** 创建人用户 ID。 */
-    private Long creatorUserId;
-    /** 最后修改人用户 ID。 */
-    private Long updaterUserId;
+    /** 创建人全局用户 ID。 */
+    private String creatorUserId;
+    /** 最后修改人全局用户 ID。 */
+    private String updaterUserId;
 }
 

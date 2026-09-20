@@ -8,8 +8,8 @@ import lombok.Setter;
 @Setter
 @TableName("tenant_info")
 public class TenantInfoEntity extends BaseEntity {
-    /** 租户 ID。 */
-    private Long tenantId;
+    /** 全局租户 ID。 */
+    private String tenantId;
     /** 联系人姓名。 */
     private String contactName;
     /** 联系人手机号。 */

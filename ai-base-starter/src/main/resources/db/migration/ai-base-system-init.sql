@@ -45,7 +45,7 @@ CREATE TABLE `platform_role_permission` (
 
 CREATE TABLE `platform_user_role` (
     `id` BIGINT UNSIGNED NOT NULL COMMENT '主键 ID',
-    `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户 ID',
+    `user_id` VARCHAR(128) NOT NULL COMMENT '全局用户 ID',
     `platform_role_id` BIGINT UNSIGNED NOT NULL COMMENT '平台角色 ID',
     `effective_start_time` DATETIME NOT NULL COMMENT '授权生效时间',
     `effective_end_time` DATETIME DEFAULT NULL COMMENT '授权失效时间，NULL 表示当前有效',

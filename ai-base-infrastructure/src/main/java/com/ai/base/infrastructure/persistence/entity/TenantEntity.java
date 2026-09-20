@@ -8,8 +8,8 @@ import lombok.Setter;
 @Setter
 @TableName("tenant")
 public class TenantEntity extends BaseEntity {
-    /** 租户编码。 */
-    private String tenantCode;
+    /** 全局租户 ID，跨库分表关联使用。 */
+    private String tenantId;
     /** 租户名称。 */
     private String tenantName;
     /** 类型：1-个人空间，2-企业租户。 */

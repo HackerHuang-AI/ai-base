@@ -8,8 +8,8 @@ import lombok.Setter;
 @Setter
 @TableName("organization_info")
 public class OrganizationInfoEntity extends BaseEntity {
-    /** 所属租户 ID。 */
-    private Long tenantId;
+    /** 所属全局租户 ID。 */
+    private String tenantId;
     /** 组织编码。 */
     private String orgCode;
     /** 组织名称。 */
@@ -18,9 +18,9 @@ public class OrganizationInfoEntity extends BaseEntity {
     private Integer orgType;
     /** 状态：1-启用，2-停用。 */
     private Integer status;
-    /** 创建人用户 ID。 */
-    private Long creatorUserId;
-    /** 最后修改人用户 ID。 */
-    private Long updaterUserId;
+    /** 创建人全局用户 ID。 */
+    private String creatorUserId;
+    /** 最后修改人全局用户 ID。 */
+    private String updaterUserId;
 }
 
