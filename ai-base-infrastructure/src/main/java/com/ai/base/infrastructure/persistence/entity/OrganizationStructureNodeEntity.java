@@ -4,6 +4,16 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * @Description: 组织架构节点实体。
+ *
+ * @ProjectName: ai-base
+ * @Package: com.ai.base.infrastructure.persistence.entity
+ * @ClassName: OrganizationStructureNodeEntity
+ * @Author: HUANGcong
+ * @Date: Created in 2026/9/24
+ * @Version: 1.0
+ */
 @Getter
 @Setter
 @TableName("organization_structure_node")

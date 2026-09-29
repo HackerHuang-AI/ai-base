@@ -1,0 +1,14 @@
+{
+  "default-pool": {
+    "corePoolSize": 4,
+    "maxPoolSize": 16,
+    "queueCapacity": 200,
+    "keepAliveSeconds": 60
+  },
+  "login-audit-pool": {
+    "corePoolSize": 2,
+    "maxPoolSize": 4,
+    "queueCapacity": 1000,
+    "keepAliveSeconds": 60
+  }
+}

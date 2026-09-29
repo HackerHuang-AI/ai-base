@@ -4,6 +4,16 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * @Description: 平台角色实体。
+ *
+ * @ProjectName: ai-base
+ * @Package: com.ai.base.infrastructure.persistence.entity
+ * @ClassName: PlatformRoleEntity
+ * @Author: HUANGcong
+ * @Date: Created in 2026/9/24
+ * @Version: 1.0
+ */
 @Getter
 @Setter
 @TableName("platform_role")

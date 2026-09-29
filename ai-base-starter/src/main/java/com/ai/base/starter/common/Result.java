@@ -2,29 +2,50 @@ package com.ai.base.starter.common;
 
 import com.ai.base.application.enums.ErrorCodeEnum;
 import com.ai.base.application.enums.ResultCodeEnum;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
+/**
+ * @Description: 统一接口响应体。
+ *
+ * @ProjectName: ai-base
+ * @Package: com.ai.base.starter.common
+ * @ClassName: Result
+ * @Author: HUANGcong
+ * @Date: Created in 2026/9/24
+ * @Version: 1.0
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class Result<T> {
+    /** 响应状态码。 */
     private ResultCodeEnum code;
+    /** 响应消息。 */
     private String message;
+    /** 业务错误码。 */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private String errorCode;
+    /** 响应数据。 */
     private T data;
+    /** 结构化错误明细。 */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private List<ErrorItem> errors;
 
     public static <T> Result<T> success(T data) {
-        return new Result<>(ResultCodeEnum.SUCCESS, ResultCodeEnum.SUCCESS.getDefaultMessage(), null, data);
-    }
-
-    public static <T> Result<T> error(String message) {
-        return new Result<>(ResultCodeEnum.ERROR, message, null, null);
+        return new Result<>(ResultCodeEnum.SUCCESS, ResultCodeEnum.SUCCESS.getDefaultMessage(), null, data, null);
     }
 
     public static <T> Result<T> error(ErrorCodeEnum errorCode, String message) {
-        return new Result<>(ResultCodeEnum.ERROR, message, errorCode.getCode(), null);
+        return error(errorCode, message, List.of());
+    }
+
+    public static <T> Result<T> error(ErrorCodeEnum errorCode, String message, List<ErrorItem> errors) {
+        return new Result<>(ResultCodeEnum.ERROR, message, errorCode.getCode(), null, List.copyOf(errors));
     }
 }
 

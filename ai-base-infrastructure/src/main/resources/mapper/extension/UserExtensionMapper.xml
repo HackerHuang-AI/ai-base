@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ai.base.infrastructure.persistence.mapper.extension.UserExtensionMapper">
+    <sql id="queryCondition">
+        WHERE u.valid = 1
+        <if test="query.userId != null and query.userId != ''">
+            AND u.user_id = #{query.userId}
+        </if>
+        <if test="query.mobile != null and query.mobile != ''">
+            AND u.mobile LIKE CONCAT('%', #{query.mobile}, '%')
+        </if>
+        <if test="query.email != null and query.email != ''">
+            AND u.email LIKE CONCAT('%', #{query.email}, '%')
+        </if>
+        <if test="query.username != null and query.username != ''">
+            AND u.username LIKE CONCAT('%', #{query.username}, '%')
+        </if>
+        <if test="query.name != null and query.name != ''">
+            AND u.name LIKE CONCAT('%', #{query.name}, '%')
+        </if>
+        <if test="query.avatarUrl != null and query.avatarUrl != ''">
+            AND ui.avatar_url LIKE CONCAT('%', #{query.avatarUrl}, '%')
+        </if>
+        <if test="query.jobNumber != null and query.jobNumber != ''">
+            AND ui.job_number LIKE CONCAT('%', #{query.jobNumber}, '%')
+        </if>
+        <if test="query.status != null">
+            AND u.status = #{query.status}
+        </if>
+        <if test="query.createdStartTime != null">
+            AND u.ctime <![CDATA[ >= ]]> #{query.createdStartTime}
+        </if>
+        <if test="query.createdEndTime != null">
+            AND u.ctime <![CDATA[ <= ]]> #{query.createdEndTime}
+        </if>
+    </sql>
+
+    <select id="countByQuery" resultType="long">
+        SELECT COUNT(1)
+        FROM base_user u
+        LEFT JOIN user_info ui ON ui.user_id = u.user_id AND ui.valid = 1
+        <include refid="queryCondition"/>
+    </select>
+
+    <select id="selectPageByQuery" resultType="com.ai.base.infrastructure.persistence.dto.UserProfileRow">
+        SELECT u.user_id AS userId,
+               u.mobile,
+               u.email,
+               u.username,
+               u.name,
+               ui.avatar_url AS avatarUrl,
+               ui.job_number AS jobNumber,
+               u.status
+        FROM base_user u
+        LEFT JOIN user_info ui ON ui.user_id = u.user_id AND ui.valid = 1
+        <include refid="queryCondition"/>
+        ORDER BY u.ctime DESC, u.id DESC
+        LIMIT #{query.offset}, #{query.pageSize}
+    </select>
+</mapper>
+

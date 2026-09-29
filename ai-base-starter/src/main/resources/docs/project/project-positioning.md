@@ -35,18 +35,24 @@ AI 智能能力管理平台按基础域、运行时引擎和治理分析域拆�
 
 | 能力 | 当前建设状态 | 现状说明 |
 | --- | --- | --- |
-| 工程与通用治理 | **已具备** | 四层 Maven 骨架、统一响应/异常、国际化、TraceId 和基础配置已落地。 |
+| 工程与通用治理 | **已具备** | 四层 Maven 骨架、统一响应/异常、国际化、TraceId 和基础配置已落地；所有平台模块独立维护错误码，但遵循统一协议：成功响应仅返回 `code`、`message`、`data`，异常响应额外返回顶层 `errorCode` 和子异常列表 `errors`。 |
 | 租户与用户数据模型 | **已具备** | 租户、用户、成员关系的迁移脚本、实体和 Mapper 已具备。 |
 | 组织、岗位与权限数据模型 | **已具备** | 组织、岗位、角色、权限及其关系的迁移脚本、实体和 Mapper 已具备。 |
 | 用户、租户和组织业务服务 | **待建设** | 尚未实现领域应用服务、管理接口和跨服务 Facade。 |
 | 登录与企业 SSO | **待建设** | 尚未建设身份映射、登录态、令牌签发或企业 SSO 对接。 |
 | 授权与网关身份联动 | **待建设** | 尚未实现租户成员资格校验、权限判定及 `X-Tenant-Id` 可信透传。 |
 
-## 五、主要技术栈
+## 五、请求上下文约定
+
+网关将可信调用链写入 `X-Call-Chain: limit=<maxCallChainHops>,length=<maxCallChainLength>;ai-gateway`，服务收到 HTTP 或 Dubbo 调用后追加自身应用名，并按首段的跳数与总长度上限校验。调用链策略只在网关 Nacos 配置中维护。
+
+异步任务需要显式调用 `TraceContextSupport.wrap(task)` 或 `TraceContextSupport.wrap(callable)`，包装器只在任务执行期间恢复 `RequestContext` 与 MDC，现有线程池不会被自动改造。定时任务使用 `runScheduled` 或 `callScheduled` 建立无用户身份的新根上下文；其调用链不携带网关限制首段。
+
+## 六、主要技术栈
 
 | 功能 | 关键技术栈 |
 | --- | --- |
 | 基础身份与权限数据 | MySQL、Flyway、MyBatis-Plus |
 | SSO 与跨服务身份上下文 | 企业 SSO、Dubbo Triple、Nacos |
-| Web 基础治理 | Spring MVC Interceptor、MDC、TraceId |
+| Web 基础治理 | Spring MVC Interceptor、MDC、TraceId、显式异步上下文包装 |
 

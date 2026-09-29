@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ai.base.infrastructure.persistence.mapper.extension.TenantUserExtensionMapper">
+    <select id="selectPersonalTenantId" resultType="java.lang.String">
+        SELECT tu.tenant_id
+        FROM tenant_user tu
+        INNER JOIN tenant t ON t.tenant_id = tu.tenant_id
+        WHERE tu.user_id = #{userId}
+          AND tu.status = 1
+          AND tu.valid = 1
+          AND t.tenant_type = 1
+          AND t.status = 1
+          AND t.valid = 1
+        ORDER BY tu.id
+        LIMIT 1
+    </select>
+</mapper>
+

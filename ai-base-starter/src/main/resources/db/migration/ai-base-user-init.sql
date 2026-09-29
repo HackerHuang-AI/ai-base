@@ -39,6 +39,7 @@ CREATE TABLE `base_user` (
     `mobile` VARCHAR(32) NOT NULL COMMENT '手机号',
     `email` VARCHAR(128) DEFAULT NULL COMMENT '邮箱',
     `username` VARCHAR(64) DEFAULT NULL COMMENT '账号名',
+    `password_hash` VARCHAR(100) DEFAULT NULL COMMENT 'BCrypt 密码哈希',
     `name` VARCHAR(64) DEFAULT NULL COMMENT '用户姓名',
     `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1-正常，2-禁用',
     `ctime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -48,7 +49,8 @@ CREATE TABLE `base_user` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_id` (`user_id`),
     UNIQUE KEY `uk_mobile` (`mobile`),
-    UNIQUE KEY `uk_email` (`email`)
+    UNIQUE KEY `uk_email` (`email`),
+    UNIQUE KEY `uk_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='平台用户表';
 
 CREATE TABLE `user_info` (
@@ -232,4 +234,35 @@ CREATE TABLE `organization_user_role` (
     UNIQUE KEY `uk_organization_user_role` (`tenant_id`, `user_id`, `organization_id`, `role_id`),
     KEY `idx_role_id` (`role_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='组织人员角色关联表';
+
+CREATE TABLE `user_identity` (
+    `id` BIGINT UNSIGNED NOT NULL COMMENT '主键 ID',
+    `user_id` VARCHAR(128) NOT NULL COMMENT '全局用户 ID',
+    `identity_type` VARCHAR(32) NOT NULL COMMENT '身份类型',
+    `identity_provider` VARCHAR(64) NOT NULL DEFAULT 'LOCAL' COMMENT '身份提供方',
+    `identity_value` VARCHAR(256) NOT NULL COMMENT '身份标识值',
+    `verified_at` DATETIME DEFAULT NULL COMMENT '认证通过时间',
+    `ctime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `utime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `valid` TINYINT NOT NULL DEFAULT 1 COMMENT '有效标识：1-有效，0-无效',
+    `version` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '乐观锁版本',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_identity_type_provider_value` (`identity_type`, `identity_provider`, `identity_value`),
+    KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户身份标识表';
+
+CREATE TABLE `login_audit` (
+    `id` BIGINT UNSIGNED NOT NULL COMMENT '主键 ID',
+    `user_id` VARCHAR(128) DEFAULT NULL COMMENT '全局用户 ID',
+    `tenant_id` VARCHAR(128) DEFAULT NULL COMMENT '全局租户 ID',
+    `identity_type` VARCHAR(32) NOT NULL COMMENT '身份类型',
+    `identity_value_hash` CHAR(64) NOT NULL COMMENT '身份标识值 SHA-256 摘要',
+    `login_result` TINYINT NOT NULL COMMENT '登录结果：1-成功，2-失败',
+    `failure_code` VARCHAR(64) DEFAULT NULL COMMENT '失败码',
+    `login_ip` VARCHAR(64) DEFAULT NULL COMMENT '登录 IP',
+    `user_agent` VARCHAR(512) DEFAULT NULL COMMENT '用户代理',
+    `login_at` DATETIME NOT NULL COMMENT '登录时间',
+    `ctime` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='登录审计表';
 

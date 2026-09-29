@@ -6,6 +6,16 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+/**
+ * @Description: 用户角色授权实体。
+ *
+ * @ProjectName: ai-base
+ * @Package: com.ai.base.infrastructure.persistence.entity
+ * @ClassName: UserRoleEntity
+ * @Author: HUANGcong
+ * @Date: Created in 2026/9/24
+ * @Version: 1.0
+ */
 @Getter
 @Setter
 @TableName("user_role")

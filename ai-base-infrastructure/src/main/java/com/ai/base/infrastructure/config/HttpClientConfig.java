@@ -8,6 +8,16 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * @Description: OkHttp 客户端配置。
+ *
+ * @ProjectName: ai-base
+ * @Package: com.ai.base.infrastructure.config
+ * @ClassName: HttpClientConfig
+ * @Author: HUANGcong
+ * @Date: Created in 2026/9/24
+ * @Version: 1.0
+ */
 @Configuration
 public class HttpClientConfig {
     @Bean

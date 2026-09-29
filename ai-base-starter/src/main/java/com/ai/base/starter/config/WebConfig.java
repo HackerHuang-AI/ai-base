@@ -12,6 +12,16 @@ import org.springframework.web.servlet.i18n.AcceptHeaderLocaleResolver;
 
 import java.util.Locale;
 
+/**
+ * @Description: Web MVC 拦截器与国际化配置。
+ *
+ * @ProjectName: ai-base
+ * @Package: com.ai.base.starter.config
+ * @ClassName: WebConfig
+ * @Author: HUANGcong
+ * @Date: Created in 2026/9/24
+ * @Version: 1.0
+ */
 @Configuration
 @RequiredArgsConstructor
 public class WebConfig implements WebMvcConfigurer {
