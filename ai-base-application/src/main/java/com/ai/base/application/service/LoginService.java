@@ -7,14 +7,10 @@ import com.ai.base.application.auth.SessionInfo;
 import java.util.List;
 
 /**
- * @Description: 用户登录与会话管理服务接口。
+ * 用户登录与会话管理服务接口。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.application.service
- * @ClassName: LoginService
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 public interface LoginService {
     LoginResult login(LoginCommand command);

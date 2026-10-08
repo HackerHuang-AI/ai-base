@@ -14,14 +14,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
- * @Description: HTTP 请求链路追踪与上下文初始化拦截器。
+ * HTTP 请求链路追踪与上下文初始化拦截器。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.starter.handler
- * @ClassName: TraceIdInterceptor
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Slf4j
 @Component

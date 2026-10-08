@@ -18,14 +18,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @Description: 业务线程池配置与运行时管理。
+ * 业务线程池配置与运行时管理。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.application.config
- * @ClassName: ThreadPoolConfig
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Slf4j
 @Configuration

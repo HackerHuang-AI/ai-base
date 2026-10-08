@@ -3,14 +3,10 @@ package com.ai.base.application.model.request;
 import java.util.Optional;
 
 /**
- * @Description: 请求上下文线程持有器。
+ * 请求上下文线程持有器。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.application.model.request
- * @ClassName: RequestContextHolder
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 public final class RequestContextHolder {
     private static final ThreadLocal<RequestContext> HOLDER = new ThreadLocal<>();

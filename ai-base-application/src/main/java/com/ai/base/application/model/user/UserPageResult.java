@@ -5,7 +5,7 @@ import lombok.Setter;
 
 import java.util.List;
 
-/** 用户分页查询结果。 */
+
 @Getter
 @Setter
 public class UserPageResult {

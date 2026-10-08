@@ -7,14 +7,10 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * @Description: 组织用户角色授权实体。
+ * 组织用户角色授权实体。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.infrastructure.persistence.entity
- * @ClassName: OrganizationUserRoleEntity
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Getter
 @Setter

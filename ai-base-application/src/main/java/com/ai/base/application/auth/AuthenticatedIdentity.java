@@ -4,14 +4,10 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * @Description: 认证后的用户身份信息。
+ * 认证后的用户身份信息。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.application.auth
- * @ClassName: AuthenticatedIdentity
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Getter
 @Setter

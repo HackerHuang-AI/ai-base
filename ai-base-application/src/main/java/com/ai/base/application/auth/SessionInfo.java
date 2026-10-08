@@ -6,14 +6,10 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * @Description: 用户登录会话信息。
+ * 用户登录会话信息。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.application.auth
- * @ClassName: SessionInfo
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Getter
 @Setter

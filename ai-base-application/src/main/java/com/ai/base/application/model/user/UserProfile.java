@@ -3,16 +3,7 @@ package com.ai.base.application.model.user;
 import lombok.Getter;
 import lombok.Setter;
 
-/**
- * @Description: 用户资料。
- *
- * @ProjectName: ai-base
- * @Package: com.ai.base.application.model.user
- * @ClassName: UserProfile
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
- */
+
 @Getter
 @Setter
 public class UserProfile {

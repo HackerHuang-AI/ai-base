@@ -4,14 +4,10 @@ import com.ai.base.application.model.request.RequestContext;
 import com.ai.base.application.model.request.RequestContextHolder;
 
 /**
- * @Description: 当前请求用户上下文访问工具。
+ * 当前请求用户上下文访问工具。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.application.utils
- * @ClassName: CurrentUserUtil
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 public final class CurrentUserUtil {
     private CurrentUserUtil() {

@@ -27,14 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 
 /**
- * @Description: Nacos 动态配置中心，管理业务配置订阅与缓存。
+ * Nacos 动态配置中心，管理业务配置订阅与缓存。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.infrastructure.config
- * @ClassName: NacosConfig
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Slf4j
 @Component

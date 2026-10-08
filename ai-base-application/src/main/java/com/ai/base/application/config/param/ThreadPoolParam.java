@@ -4,14 +4,10 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * @Description: 线程池参数配置实体。
+ * 线程池参数配置实体。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.application.config.param
- * @ClassName: ThreadPoolParam
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Getter
 @Setter

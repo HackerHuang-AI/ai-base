@@ -10,14 +10,10 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * @Description: 持久化实体公共字段基类。
+ * 持久化实体公共字段基类。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.infrastructure.persistence.entity
- * @ClassName: BaseEntity
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Getter
 @Setter

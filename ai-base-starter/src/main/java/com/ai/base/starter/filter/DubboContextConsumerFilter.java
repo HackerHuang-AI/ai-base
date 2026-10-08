@@ -10,14 +10,10 @@ import org.apache.dubbo.rpc.Invoker;
 import org.apache.dubbo.rpc.Result;
 
 /**
- * @Description: Dubbo 服务消费方请求上下文透传过滤器。
+ * Dubbo 服务消费方请求上下文透传过滤器。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.starter.filter
- * @ClassName: DubboContextConsumerFilter
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Activate(group = "consumer")
 public class DubboContextConsumerFilter implements Filter {

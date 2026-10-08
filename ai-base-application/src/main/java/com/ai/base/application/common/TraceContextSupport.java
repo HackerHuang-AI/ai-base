@@ -11,14 +11,10 @@ import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
 
 /**
- * @Description: 链路追踪上下文创建、校验与在线程间传递工具。
+ * 链路追踪上下文创建、校验与在线程间传递工具。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.starter.common
- * @ClassName: TraceContextSupport
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 public final class TraceContextSupport {
     private static final String MDC_TRACE_ID = "traceId";

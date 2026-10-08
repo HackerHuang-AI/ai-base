@@ -1,14 +1,10 @@
 package com.ai.base.application.model.request;
 
 /**
- * @Description: 请求上下文信息。
+ * 请求上下文信息。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.application.model.request
- * @ClassName: RequestContext
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 public record RequestContext(
         /** 调用链追踪标识。 */

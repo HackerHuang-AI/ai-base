@@ -12,14 +12,10 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 
 /**
- * @Description: HTTP 客户端与请求上下文透传配置。
+ * HTTP 客户端与请求上下文透传配置。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.starter.config
- * @ClassName: RestClientConfig
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Configuration
 public class RestClientConfig {

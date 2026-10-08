@@ -1,14 +1,10 @@
 package com.ai.base.application.service;
 
 /**
- * @Description: 短信登录验证码服务接口。
+ * 短信登录验证码服务接口。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.application.service
- * @ClassName: SmsCodeService
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 public interface SmsCodeService {
     void sendLoginCode(String mobile);

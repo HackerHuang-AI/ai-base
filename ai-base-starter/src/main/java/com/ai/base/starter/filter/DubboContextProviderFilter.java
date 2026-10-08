@@ -9,14 +9,10 @@ import org.apache.dubbo.rpc.model.ApplicationModel;
 import org.slf4j.MDC;
 
 /**
- * @Description: Dubbo 服务提供方请求上下文接收过滤器。
+ * Dubbo 服务提供方请求上下文接收过滤器。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.starter.filter
- * @ClassName: DubboContextProviderFilter
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Activate(group = "provider")
 public class DubboContextProviderFilter implements Filter {

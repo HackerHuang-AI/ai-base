@@ -27,14 +27,10 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @Description: 统一处理 Web 层异常并返回标准响应。
+ * 统一处理 Web 层异常并返回标准响应。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.starter.handler
- * @ClassName: GlobalExceptionHandler
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Slf4j
 @RestControllerAdvice

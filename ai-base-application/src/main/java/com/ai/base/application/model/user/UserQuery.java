@@ -5,7 +5,7 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-/** 用户详情与分页查询的应用层查询条件。 */
+
 @Getter
 @Setter
 public class UserQuery {

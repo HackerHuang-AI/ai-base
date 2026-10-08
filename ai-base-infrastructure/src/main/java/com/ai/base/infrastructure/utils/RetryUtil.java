@@ -6,14 +6,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * @Description: 基于指数退避的重试工具。
+ * 基于指数退避的重试工具。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.infrastructure.utils
- * @ClassName: RetryUtil
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Slf4j
 public final class RetryUtil {

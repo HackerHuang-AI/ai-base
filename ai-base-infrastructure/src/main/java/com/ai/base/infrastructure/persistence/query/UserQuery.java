@@ -6,14 +6,10 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * @Description: 用户分页查询持久化条件。
+ * 用户分页查询持久化条件。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.infrastructure.persistence.query
- * @ClassName: UserQuery
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Getter
 @Setter

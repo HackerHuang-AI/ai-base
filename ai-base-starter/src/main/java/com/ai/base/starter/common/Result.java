@@ -10,14 +10,10 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * @Description: 统一接口响应体。
+ * 统一接口响应体。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.starter.common
- * @ClassName: Result
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Data
 @NoArgsConstructor

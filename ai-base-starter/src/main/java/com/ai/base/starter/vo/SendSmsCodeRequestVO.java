@@ -5,14 +5,10 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * @Description: 发送短信验证码请求参数。
+ * 发送短信验证码请求参数。
  *
- * @ProjectName: ai-base
- * @Package: com.ai.base.starter.vo
- * @ClassName: SendSmsCodeRequestVO
- * @Author: HUANGcong
- * @Date: Created in 2026/9/24
- * @Version: 1.0
+ * @author HUANGcong
+ * @since 2026-09-24
  */
 @Getter
 @Setter
