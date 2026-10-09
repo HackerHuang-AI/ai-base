@@ -13,7 +13,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @TableName("tenant")
-public class TenantEntity extends BaseEntity {
+public class TenantEntity extends VersionedEntity {
     /** 全局租户 ID，跨库分表关联使用。 */
     private String tenantId;
     /** 租户名称。 */

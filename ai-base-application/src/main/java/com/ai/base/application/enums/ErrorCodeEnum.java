@@ -30,6 +30,8 @@ public enum ErrorCodeEnum {
     DEVICE_ID_REQUIRED("1101107", "error.1101107", "设备标识不能为空"),
     DEVICE_ID_FORMAT_INVALID("1101108", "error.1101108", "设备标识格式不合法"),
     USER_NOT_FOUND("1201001", "error.1201001", "用户不存在或已禁用"),
+    DATA_VERSION_CONFLICT("1201002", "error.1201002", "数据已被更新，请刷新后重试"),
+    CREDENTIAL_ALREADY_IN_USE("1201003", "error.1201003", "账号或手机号已被使用"),
     USER_ID_REQUIRED("1201101", "error.1201101", "用户标识不能为空"),
     PAGE_NUMBER_OUT_OF_RANGE("1201102", "error.1201102", "页码超出允许范围"),
     PAGE_SIZE_OUT_OF_RANGE("1201103", "error.1201103", "每页条数超出允许范围");

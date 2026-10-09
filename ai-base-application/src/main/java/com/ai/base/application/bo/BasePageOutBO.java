@@ -1,21 +1,20 @@
-package com.ai.base.application.model.user;
+package com.ai.base.application.bo;
 
 import lombok.Getter;
 import lombok.Setter;
 
 import java.util.List;
 
-
+/** Service 分页返回结果。 */
 @Getter
 @Setter
-public class UserPageResult {
-    /** 当前页用户信息。 */
-    private List<UserProfile> records;
+public class BasePageOutBO<T> {
+    /** 当前页记录。 */
+    private List<T> records;
     /** 符合筛选条件的总记录数。 */
     private long total;
     /** 当前页码，从 1 开始。 */
     private long pageNo;
-    /** 每页条数。 */
+    /** 每页记录数。 */
     private long pageSize;
 }
-

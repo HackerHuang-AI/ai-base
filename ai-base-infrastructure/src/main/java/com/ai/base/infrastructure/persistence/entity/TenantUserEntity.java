@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @TableName("tenant_user")
-public class TenantUserEntity extends BaseEntity {
+public class TenantUserEntity extends VersionedEntity {
     /** 全局租户 ID。 */
     private String tenantId;
     /** 全局用户 ID。 */

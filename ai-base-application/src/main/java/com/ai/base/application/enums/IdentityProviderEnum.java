@@ -7,9 +7,7 @@ public enum IdentityProviderEnum {
     /** 本地账号密码认证服务。 */
     LOCAL("LOCAL"),
     /** 短信验证码认证服务。 */
-    SMS("SMS"),
-    /** 仅用于早期测试的模拟认证服务。 */
-    MOCK("MOCK");
+    SMS("SMS");
 
     private final String value;
 

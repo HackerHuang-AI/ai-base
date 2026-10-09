@@ -1,18 +1,25 @@
 package com.ai.base.application.service;
 
-import com.ai.base.application.model.user.UserPageResult;
-import com.ai.base.application.model.user.UserProfile;
-import com.ai.base.application.model.user.UserQuery;
+import com.ai.base.application.bo.*;
 
-/**
- * 用户资料查询服务接口。
- *
- * @author HUANGcong
- * @since 2026-09-24
- */
+import java.util.List;
+
+/** 用户资料服务。 */
 public interface UserService {
-    UserProfile getProfile(UserQuery query);
+    PersonalUserProfileBO getCurrentProfile();
 
-    UserPageResult page(UserQuery query);
+    void updateCurrentProfile(PersonalUserUpdateBO update);
+
+    void updateCurrentUsername(PersonalUsernameUpdateBO update);
+
+    void updateCurrentMobile(PersonalMobileUpdateBO update);
+
+    void updateCurrentPersonalTenant(PersonalTenantUpdateBO update);
+
+    List<UserProfileBO> listProfiles(List<String> userIds);
+
+    List<UserWithTenantsBO> listProfilesWithTenants(List<String> userIds);
+
+    BasePageOutBO<UserProfileBO> adminUserPage(AdminUserQueryBO query);
 }
 

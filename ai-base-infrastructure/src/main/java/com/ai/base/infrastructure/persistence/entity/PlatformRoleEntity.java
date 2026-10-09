@@ -13,7 +13,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @TableName("platform_role")
-public class PlatformRoleEntity extends BaseEntity {
+public class PlatformRoleEntity extends VersionedEntity {
     /** 平台角色编码。 */
     private String roleCode;
     /** 平台角色名称。 */

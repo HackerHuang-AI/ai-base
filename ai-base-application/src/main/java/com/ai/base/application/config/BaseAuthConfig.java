@@ -20,6 +20,10 @@ public class BaseAuthConfig {
     public static class SessionConfig {
         /** 单用户允许的最大登录设备数。 */
         private Integer maxDevices;
+        /** 登录会话有效期，单位分钟。 */
+        private Integer ttlMinutes;
+        /** 会话剩余多久时续期，单位分钟。 */
+        private Integer renewWindowMinutes;
     }
 }
 

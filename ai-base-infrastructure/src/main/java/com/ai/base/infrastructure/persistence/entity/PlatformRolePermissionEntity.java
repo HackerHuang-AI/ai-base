@@ -13,7 +13,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @TableName("platform_role_permission")
-public class PlatformRolePermissionEntity extends BaseEntity {
+public class PlatformRolePermissionEntity extends VersionedEntity {
     /** 平台角色 ID。 */
     private Long platformRoleId;
     /** 权限点 ID。 */

@@ -1,20 +1,14 @@
-package com.ai.base.application.model.user;
+package com.ai.base.application.bo;
 
 import lombok.Getter;
 import lombok.Setter;
 
-
+/** 当前个人用户资料更新参数。 */
 @Getter
 @Setter
-public class UserProfile {
-    /** 用户标识。 */
-    private String userId;
-    /** 手机号。 */
-    private String mobile;
+public class PersonalUserUpdateBO {
     /** 邮箱地址。 */
     private String email;
-    /** 用户名。 */
-    private String username;
     /** 姓名。 */
     private String name;
     /** 头像地址。 */

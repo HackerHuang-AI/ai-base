@@ -13,7 +13,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @TableName("user_info")
-public class UserInfoEntity extends BaseEntity {
+public class UserInfoEntity extends VersionedEntity {
     /** 全局用户 ID。 */
     private String userId;
     /** 头像地址。 */

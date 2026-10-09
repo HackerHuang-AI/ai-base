@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @TableName("user_identity")
-public class UserIdentityEntity extends BaseEntity {
+public class UserIdentityEntity extends VersionedEntity {
     /** 全局用户 ID。 */
     private String userId;
     /** 身份类型。 */

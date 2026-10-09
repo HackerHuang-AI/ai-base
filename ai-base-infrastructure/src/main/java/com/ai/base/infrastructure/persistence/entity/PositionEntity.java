@@ -13,7 +13,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @TableName("position")
-public class PositionEntity extends BaseEntity {
+public class PositionEntity extends VersionedEntity {
     /** 所属全局租户 ID。 */
     private String tenantId;
     /** 岗位编码。 */

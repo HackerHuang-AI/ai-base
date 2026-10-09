@@ -46,7 +46,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class LoginServiceImpl implements LoginService {
-    private static final Duration SESSION_TTL = Duration.ofHours(4);
+    private static final Duration DEFAULT_SESSION_TTL = Duration.ofHours(4);
+    private static final Duration DEFAULT_SESSION_RENEW_WINDOW = Duration.ofMinutes(10);
     private static final int DEFAULT_MAX_DEVICES = 5;
     private static final String DEVICE_LIMIT_EXCEEDED = "DEVICE_LIMIT_EXCEEDED";
     private static final RedisScript<String> REPLACE_DEVICE_SESSION_SCRIPT = new DefaultRedisScript<>("local oldSessionId = redis.call('HGET', KEYS[1], ARGV[1])\nif not oldSessionId and redis.call('HLEN', KEYS[1]) >= tonumber(ARGV[2]) then return 'DEVICE_LIMIT_EXCEEDED' end\nredis.call('HSET', KEYS[1], ARGV[1], ARGV[3])\nredis.call('PEXPIRE', KEYS[1], ARGV[4])\nreturn oldSessionId or ''", String.class);
@@ -109,10 +110,11 @@ public class LoginServiceImpl implements LoginService {
         String sessionToken = newSessionToken();
         String tokenHash = sha256(sessionToken);
         SessionInfo session = newSession(sessionId, command);
-        String oldSessionId = replaceDeviceSession(userId, command.getDeviceId(), sessionId);
+        SessionPolicy sessionPolicy = sessionPolicy();
+        String oldSessionId = replaceDeviceSession(userId, command.getDeviceId(), sessionId, sessionPolicy.ttl());
         try {
-            stringRedisTemplate.opsForValue().set(sessionKey(tokenHash), sessionValue(session, userId, tenantId), SESSION_TTL);
-            stringRedisTemplate.opsForValue().set(sessionIdKey(sessionId), tokenHash, SESSION_TTL);
+            stringRedisTemplate.opsForValue().set(sessionKey(tokenHash), sessionValue(session, userId, tenantId, sessionPolicy), sessionPolicy.ttl());
+            stringRedisTemplate.opsForValue().set(sessionIdKey(sessionId), tokenHash, sessionPolicy.ttl());
         } catch (RuntimeException exception) {
             rollbackDeviceSession(userId, command.getDeviceId(), sessionId, oldSessionId);
             throw exception;
@@ -130,9 +132,9 @@ public class LoginServiceImpl implements LoginService {
         return result;
     }
 
-    private String replaceDeviceSession(String userId, String deviceId, String sessionId) {
+    private String replaceDeviceSession(String userId, String deviceId, String sessionId, Duration sessionTtl) {
         String result = stringRedisTemplate.execute(REPLACE_DEVICE_SESSION_SCRIPT, List.of(userSessionsKey(userId)),
-                deviceId, String.valueOf(maxDevices()), sessionId, String.valueOf(SESSION_TTL.toMillis()));
+                deviceId, String.valueOf(maxDevices()), sessionId, String.valueOf(sessionTtl.toMillis()));
         if (DEVICE_LIMIT_EXCEEDED.equals(result)) {
             throw new BizException(ErrorCodeEnum.DEVICE_LIMIT_EXCEEDED);
         }
@@ -148,6 +150,20 @@ public class LoginServiceImpl implements LoginService {
         BaseAuthConfig config = nacosConfig.getDataIdAsObject(NacosDataIdEnum.AI_BASE_AUTH, BaseAuthConfig.class);
         Integer maxDevices = config == null || config.getSession() == null ? null : config.getSession().getMaxDevices();
         return maxDevices == null || maxDevices <= 0 ? DEFAULT_MAX_DEVICES : maxDevices;
+    }
+
+    private SessionPolicy sessionPolicy() {
+        BaseAuthConfig config = nacosConfig.getDataIdAsObject(NacosDataIdEnum.AI_BASE_AUTH, BaseAuthConfig.class);
+        BaseAuthConfig.SessionConfig session = config == null ? null : config.getSession();
+        Integer ttlMinutes = session == null ? null : session.getTtlMinutes();
+        Integer renewWindowMinutes = session == null ? null : session.getRenewWindowMinutes();
+        Duration ttl = ttlMinutes == null || ttlMinutes <= 0 ? DEFAULT_SESSION_TTL : Duration.ofMinutes(ttlMinutes);
+        Duration renewWindow = renewWindowMinutes == null || renewWindowMinutes <= 0
+                ? DEFAULT_SESSION_RENEW_WINDOW : Duration.ofMinutes(renewWindowMinutes);
+        if (renewWindow.compareTo(ttl) >= 0) {
+            renewWindow = Duration.ofMillis(ttl.toMillis() / 4);
+        }
+        return new SessionPolicy(ttl, renewWindow);
     }
 
     private LoginAuthenticator findAuthenticator(LoginTypeEnum loginType) {
@@ -289,9 +305,9 @@ public class LoginServiceImpl implements LoginService {
         return "ai-admin:ai-base:auth:user-sessions:{" + userId + "}";
     }
 
-    private String sessionValue(SessionInfo info, String userId, String tenantId) {
+    private String sessionValue(SessionInfo info, String userId, String tenantId, SessionPolicy sessionPolicy) {
         try {
-            return objectMapper.writeValueAsString(new SessionData(info, userId, tenantId));
+            return objectMapper.writeValueAsString(new SessionData(info, userId, tenantId, sessionPolicy));
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Failed to serialize session", exception);
         }
@@ -307,10 +323,11 @@ public class LoginServiceImpl implements LoginService {
     }
 
     private record SessionData(String sessionId, String userId, String tenantId, String deviceId,
-                               String loginIp, String userAgent, String loginAt) {
-        private SessionData(SessionInfo info, String userId, String tenantId) {
+                               String loginIp, String userAgent, String loginAt, long ttlMillis, long renewWindowMillis) {
+        private SessionData(SessionInfo info, String userId, String tenantId, SessionPolicy sessionPolicy) {
             this(info.getSessionId(), userId, tenantId, info.getDeviceId(), info.getLoginIp(), info.getUserAgent(),
-                    info.getLoginAt() == null ? null : info.getLoginAt().toString());
+                    info.getLoginAt() == null ? null : info.getLoginAt().toString(), sessionPolicy.ttl().toMillis(),
+                    sessionPolicy.renewWindow().toMillis());
         }
 
         private SessionInfo toInfo() {
@@ -326,6 +343,9 @@ public class LoginServiceImpl implements LoginService {
             }
             return info;
         }
+    }
+
+    private record SessionPolicy(Duration ttl, Duration renewWindow) {
     }
 
     private String sha256(String value) {

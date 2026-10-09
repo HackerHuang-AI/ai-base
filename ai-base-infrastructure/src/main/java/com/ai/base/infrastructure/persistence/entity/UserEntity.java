@@ -13,7 +13,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @TableName("base_user")
-public class UserEntity extends BaseEntity {
+public class UserEntity extends VersionedEntity {
     /** 全局用户 ID，跨库分表关联使用。 */
     private String userId;
     /** 手机号。 */

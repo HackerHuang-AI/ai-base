@@ -13,7 +13,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @TableName("organization_structure_node")
-public class OrganizationStructureNodeEntity extends BaseEntity {
+public class OrganizationStructureNodeEntity extends VersionedEntity {
     /** 所属全局租户 ID。 */
     private String tenantId;
     /** 组织架构 ID。 */

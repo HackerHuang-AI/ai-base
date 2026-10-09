@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @TableName("user_role")
-public class UserRoleEntity extends BaseEntity {
+public class UserRoleEntity extends VersionedEntity {
     /** 全局租户 ID。 */
     private String tenantId;
     /** 全局用户 ID。 */

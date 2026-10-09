@@ -19,6 +19,7 @@ import com.ai.base.infrastructure.persistence.mapper.UserIdentityMapper;
 import com.ai.base.infrastructure.persistence.mapper.UserMapper;
 import com.ai.base.infrastructure.persistence.mapper.extension.TenantUserExtensionMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +30,7 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -142,9 +144,41 @@ class LoginServiceImplTest {
     }
 
     @Test
+    void loginWritesNacosSessionPolicy() throws Exception {
+        LoginAuthenticator authenticator = mock(LoginAuthenticator.class);
+        when(authenticator.supports()).thenReturn(LoginTypeEnum.ACCOUNT_PASSWORD);
+        AuthenticatedIdentity identity = new AuthenticatedIdentity();
+        identity.setUserId(USER_ID);
+        identity.setIdentityValue("13800000000");
+        when(authenticator.authenticate(org.mockito.ArgumentMatchers.any(LoginCommand.class))).thenReturn(identity);
+        UserEntity user = new UserEntity();
+        user.setStatus(1);
+        when(userMapper.selectOne(org.mockito.ArgumentMatchers.<LambdaQueryWrapper<UserEntity>>any())).thenReturn(user);
+        when(tenantUserExtensionMapper.selectPersonalTenantId(USER_ID)).thenReturn("tenant-1");
+        when(nacosConfig.getDataIdAsObject(NacosDataIdEnum.AI_BASE_AUTH, BaseAuthConfig.class))
+                .thenReturn(baseAuthConfig(5, 120, 30));
+
+        LoginCommand command = new LoginCommand();
+        command.setLoginType(LoginTypeEnum.ACCOUNT_PASSWORD.getValue());
+        command.setDeviceId("device-0000000001");
+
+        loginService = new LoginServiceImpl(List.of(authenticator), mock(UserIdentityMapper.class), userMapper,
+                tenantUserExtensionMapper, loginAuditMapper, redisTemplate,
+                new ObjectMapper().findAndRegisterModules(), nacosConfig, loginAuditExecutor);
+        loginService.login(command);
+
+        org.mockito.ArgumentCaptor<String> sessionValue = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(valueOperations).set(org.mockito.ArgumentMatchers.startsWith("ai-admin:ai-base:auth:session:{"),
+                sessionValue.capture(), eq(Duration.ofMinutes(120)));
+        JsonNode session = new ObjectMapper().readTree(sessionValue.getValue());
+        assertThat(session.path("ttlMillis").longValue()).isEqualTo(Duration.ofMinutes(120).toMillis());
+        assertThat(session.path("renewWindowMillis").longValue()).isEqualTo(Duration.ofMinutes(30).toMillis());
+    }
+
+    @Test
     void loginRejectsNewDeviceWhenLimitReached() throws Exception {
         LoginAuthenticator authenticator = mock(LoginAuthenticator.class);
-        when(authenticator.supports()).thenReturn(LoginTypeEnum.MOCK);
+        when(authenticator.supports()).thenReturn(LoginTypeEnum.ACCOUNT_PASSWORD);
         AuthenticatedIdentity identity = new AuthenticatedIdentity();
         identity.setUserId(USER_ID);
         identity.setIdentityValue("13800000000");
@@ -158,7 +192,7 @@ class LoginServiceImplTest {
         when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<String>>any(), org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn("DEVICE_LIMIT_EXCEEDED");
 
         LoginCommand command = new LoginCommand();
-        command.setLoginType(LoginTypeEnum.MOCK.getValue());
+        command.setLoginType(LoginTypeEnum.ACCOUNT_PASSWORD.getValue());
         command.setDeviceId("device-0000000002");
 
         assertThatThrownBy(() -> new LoginServiceImpl(List.of(authenticator), mock(UserIdentityMapper.class), userMapper,
@@ -170,9 +204,15 @@ class LoginServiceImplTest {
     }
 
     private BaseAuthConfig baseAuthConfig(int maxDevices) {
+        return baseAuthConfig(maxDevices, null, null);
+    }
+
+    private BaseAuthConfig baseAuthConfig(int maxDevices, Integer ttlMinutes, Integer renewWindowMinutes) {
         BaseAuthConfig config = new BaseAuthConfig();
         BaseAuthConfig.SessionConfig sessionConfig = new BaseAuthConfig.SessionConfig();
         sessionConfig.setMaxDevices(maxDevices);
+        sessionConfig.setTtlMinutes(ttlMinutes);
+        sessionConfig.setRenewWindowMinutes(renewWindowMinutes);
         config.setSession(sessionConfig);
         return config;
     }

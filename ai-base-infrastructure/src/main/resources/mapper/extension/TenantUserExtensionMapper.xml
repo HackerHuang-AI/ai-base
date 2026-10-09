@@ -14,5 +14,39 @@
         ORDER BY tu.id
         LIMIT 1
     </select>
+
+    <select id="selectPersonalByUserId" resultType="com.ai.base.infrastructure.persistence.dto.UserTenantRow">
+        SELECT t.tenant_id AS tenantId,
+               t.tenant_name AS tenantName,
+               t.tenant_type AS tenantType
+        FROM tenant_user tu
+        INNER JOIN tenant t ON t.tenant_id = tu.tenant_id
+        WHERE tu.user_id = #{userId}
+          AND tu.status = 1
+          AND tu.valid = 1
+          AND t.tenant_type = 1
+          AND t.status = 1
+          AND t.valid = 1
+        ORDER BY tu.id
+        LIMIT 1
+    </select>
+
+    <select id="selectByUserIds" resultType="com.ai.base.infrastructure.persistence.dto.UserTenantRow">
+        SELECT tu.user_id AS userId,
+               t.tenant_id AS tenantId,
+               t.tenant_name AS tenantName,
+               t.tenant_type AS tenantType
+        FROM tenant_user tu
+        INNER JOIN tenant t ON t.tenant_id = tu.tenant_id
+        WHERE tu.user_id IN
+        <foreach collection="userIds" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+          AND tu.status = 1
+          AND tu.valid = 1
+          AND t.status = 1
+          AND t.valid = 1
+        ORDER BY tu.id
+    </select>
 </mapper>
 

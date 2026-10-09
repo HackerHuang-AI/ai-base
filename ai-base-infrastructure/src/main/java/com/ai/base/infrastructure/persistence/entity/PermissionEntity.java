@@ -13,7 +13,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @TableName("permission")
-public class PermissionEntity extends BaseEntity {
+public class PermissionEntity extends VersionedEntity {
     /** 权限点编码。 */
     private String permissionCode;
     /** 权限点名称。 */

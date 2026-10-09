@@ -1,5 +1,7 @@
 {
   "session": {
-    "maxDevices": 5
+    "maxDevices": 5,
+    "ttlMinutes": 240,
+    "renewWindowMinutes": 10
   }
 }

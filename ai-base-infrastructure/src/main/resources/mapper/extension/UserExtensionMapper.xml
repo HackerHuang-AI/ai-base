@@ -3,35 +3,35 @@
 <mapper namespace="com.ai.base.infrastructure.persistence.mapper.extension.UserExtensionMapper">
     <sql id="queryCondition">
         WHERE u.valid = 1
-        <if test="query.userId != null and query.userId != ''">
-            AND u.user_id = #{query.userId}
+        <if test="user.userId != null and user.userId != ''">
+            AND u.user_id = #{user.userId}
         </if>
-        <if test="query.mobile != null and query.mobile != ''">
-            AND u.mobile LIKE CONCAT('%', #{query.mobile}, '%')
+        <if test="user.mobile != null and user.mobile != ''">
+            AND u.mobile LIKE CONCAT('%', #{user.mobile}, '%')
         </if>
-        <if test="query.email != null and query.email != ''">
-            AND u.email LIKE CONCAT('%', #{query.email}, '%')
+        <if test="user.email != null and user.email != ''">
+            AND u.email LIKE CONCAT('%', #{user.email}, '%')
         </if>
-        <if test="query.username != null and query.username != ''">
-            AND u.username LIKE CONCAT('%', #{query.username}, '%')
+        <if test="user.username != null and user.username != ''">
+            AND u.username LIKE CONCAT('%', #{user.username}, '%')
         </if>
-        <if test="query.name != null and query.name != ''">
-            AND u.name LIKE CONCAT('%', #{query.name}, '%')
+        <if test="user.name != null and user.name != ''">
+            AND u.name LIKE CONCAT('%', #{user.name}, '%')
         </if>
-        <if test="query.avatarUrl != null and query.avatarUrl != ''">
-            AND ui.avatar_url LIKE CONCAT('%', #{query.avatarUrl}, '%')
+        <if test="userInfo.avatarUrl != null and userInfo.avatarUrl != ''">
+            AND ui.avatar_url LIKE CONCAT('%', #{userInfo.avatarUrl}, '%')
         </if>
-        <if test="query.jobNumber != null and query.jobNumber != ''">
-            AND ui.job_number LIKE CONCAT('%', #{query.jobNumber}, '%')
+        <if test="userInfo.jobNumber != null and userInfo.jobNumber != ''">
+            AND ui.job_number LIKE CONCAT('%', #{userInfo.jobNumber}, '%')
         </if>
-        <if test="query.status != null">
-            AND u.status = #{query.status}
+        <if test="user.status != null">
+            AND u.status = #{user.status}
         </if>
-        <if test="query.createdStartTime != null">
-            AND u.ctime <![CDATA[ >= ]]> #{query.createdStartTime}
+        <if test="user.ctime != null">
+            AND u.ctime <![CDATA[ >= ]]> #{user.ctime}
         </if>
-        <if test="query.createdEndTime != null">
-            AND u.ctime <![CDATA[ <= ]]> #{query.createdEndTime}
+        <if test="createdEndTime != null">
+            AND u.ctime <![CDATA[ <= ]]> #{createdEndTime}
         </if>
     </sql>
 
@@ -55,7 +55,25 @@
         LEFT JOIN user_info ui ON ui.user_id = u.user_id AND ui.valid = 1
         <include refid="queryCondition"/>
         ORDER BY u.ctime DESC, u.id DESC
-        LIMIT #{query.offset}, #{query.pageSize}
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="selectByUserIds" resultType="com.ai.base.infrastructure.persistence.dto.UserProfileRow">
+        SELECT u.user_id AS userId,
+               u.mobile,
+               u.email,
+               u.username,
+               u.name,
+               ui.avatar_url AS avatarUrl,
+               ui.job_number AS jobNumber,
+               u.status
+        FROM base_user u
+        LEFT JOIN user_info ui ON ui.user_id = u.user_id AND ui.valid = 1
+        WHERE u.valid = 1
+          AND u.user_id IN
+        <foreach collection="userIds" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
     </select>
 </mapper>
 

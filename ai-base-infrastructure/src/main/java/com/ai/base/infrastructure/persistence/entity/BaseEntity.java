@@ -3,7 +3,6 @@ package com.ai.base.infrastructure.persistence.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
-import com.baomidou.mybatisplus.annotation.Version;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -28,8 +27,5 @@ public abstract class BaseEntity {
     /** 有效标识：1-有效，0-无效。 */
     @TableLogic(value = "1", delval = "0")
     private Integer valid;
-    /** 乐观锁版本。 */
-    @Version
-    private Integer version;
 }
 
