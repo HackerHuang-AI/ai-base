@@ -18,7 +18,6 @@ tenant_user 1 --- N user_role N --- 1 role N --- N permission
 tenant_user 1 --- N organization_user N --- 1 organization_info
 organization_user 1 --- N organization_user_role N --- 1 role
 organization_info N --- N organization_structure（由 organization_structure_node 表达树位置）
-base_user 1 --- N platform_user_role N --- 1 platform_role
 ```
 
 ## 基础字段
@@ -70,17 +69,13 @@ base_user 1 --- N platform_user_role N --- 1 platform_role
 | `role_permission` | 租户角色与权限点关联。 |
 | `user_role` | 面向租户成员的租户范围角色授予，支持有效期。 |
 | `organization_user_role` | 面向组织任职的组织范围角色授予，支持有效期。 |
-| `platform_role` | 跨租户的平台级管理角色，与租户角色完全分离。 |
-| `platform_role_permission` | 平台角色与平台统一权限点关联。 |
-| `platform_user_role` | 平台用户的平台级角色授予，支持有效期。 |
-
 角色范围：`1-租户`、`2-组织`、`3-两者均可`。系统必须拒绝将租户范围角色写入 `organization_user_role`，或将组织范围角色写入 `user_role`。
 
 ## 归属和鉴权约定
 
 后续所有租户业务资源必须保存非空的全局 `tenant_id`，以它作为数据隔离与计费归属；用户创建或修改的资源还应保存全局 `creator_user_id`、`updater_user_id`，可转交资源额外保存全局 `owner_user_id`。禁止用 `base_user.id`、`tenant.id` 等本地物理主键作为跨表、跨库或跨服务关联字段。
 
-认证后，服务端使用全局 `user_id + tenant_id` 确认有效 `tenant_user`，再加载有效期内的 `user_role` 和 `organization_user_role`。业务查询必须使用服务端确认的 `tenant_id`，不得信任客户端任意传入的租户 ID。平台后台能力只使用独立的 `platform_user_role` 授权。
+认证后，服务端使用全局 `user_id + tenant_id` 确认有效 `tenant_user`，再加载有效期内的 `user_role` 和 `organization_user_role`。业务查询必须使用服务端确认的 `tenant_id`，不得信任客户端任意传入的租户 ID。运营后台能力由 `ai-operations` 的运营角色授权。
 
 ## 跨表约束
 
