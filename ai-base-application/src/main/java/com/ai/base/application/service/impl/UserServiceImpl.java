@@ -289,7 +289,7 @@ public class UserServiceImpl implements UserService {
         user.setUsername(query.getUsername());
         user.setName(query.getName());
         user.setStatus(query.getStatus());
-        user.setCtime(query.getCreatedStartTime());
+        user.setCreateTime(query.getCreatedStartTime());
         return user;
     }
 

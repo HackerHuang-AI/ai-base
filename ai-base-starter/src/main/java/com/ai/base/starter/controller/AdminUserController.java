@@ -31,6 +31,7 @@ public class AdminUserController {
 
     @PostMapping("/page")
     public Result<BasePageOutBO<UserProfileBO>> adminUserPage(@Valid @RequestBody AdminUserPageVO request) {
+        log.info("分页查询用户信息, pageNo={}, pageSize={}", request.getPageNo(), request.getPageSize());
         try {
             return Result.success(userService.adminUserPage(toQuery(request)));
         } catch (BizException e) {

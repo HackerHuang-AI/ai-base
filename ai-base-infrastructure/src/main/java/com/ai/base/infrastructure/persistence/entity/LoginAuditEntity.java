@@ -40,6 +40,6 @@ public class LoginAuditEntity {
     /** 登录时间。 */
     private LocalDateTime loginAt;
     /** 创建时间。 */
-    private LocalDateTime ctime;
+    private LocalDateTime createTime;
 }
 

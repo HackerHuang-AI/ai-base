@@ -20,11 +20,15 @@ public class RoleEntity extends VersionedEntity {
     private String roleCode;
     /** 角色名称。 */
     private String roleName;
-    /** 适用范围：1-租户，2-组织，3-两者。 */
-    private Integer scopeType;
     /** 角色说明。 */
     private String description;
+    /** 租户是否允许删除：1-允许，0-不允许。 */
+    private Integer deletable;
     /** 状态：1-启用，2-停用。 */
     private Integer status;
+    /** 创建人全局用户 ID。 */
+    private String creatorUserId;
+    /** 最后修改人全局用户 ID。 */
+    private String updaterUserId;
 }
 

@@ -1,10 +1,10 @@
 package com.ai.base.application.service.impl;
 
 import com.ai.base.application.bo.PersonalMobileUpdateBO;
-import com.ai.base.application.common.BizException;
-import com.ai.base.application.enums.ErrorCodeEnum;
 import com.ai.base.application.bo.PersonalUserUpdateBO;
 import com.ai.base.application.bo.PersonalUsernameUpdateBO;
+import com.ai.base.application.common.BizException;
+import com.ai.base.application.enums.ErrorCodeEnum;
 import com.ai.base.application.model.request.RequestContext;
 import com.ai.base.application.model.request.RequestContextHolder;
 import com.ai.base.application.service.LoginService;

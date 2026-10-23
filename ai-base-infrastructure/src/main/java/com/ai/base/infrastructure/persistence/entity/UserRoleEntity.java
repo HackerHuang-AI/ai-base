@@ -26,5 +26,9 @@ public class UserRoleEntity extends VersionedEntity {
     private LocalDateTime effectiveEndTime;
     /** 角色 ID。 */
     private Long roleId;
+    /** 创建人全局用户 ID。 */
+    private String creatorUserId;
+    /** 最后修改人全局用户 ID。 */
+    private String updaterUserId;
 }
 
