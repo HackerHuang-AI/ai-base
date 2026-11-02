@@ -21,6 +21,7 @@ public enum ErrorCodeEnum {
     LOGIN_TYPE_NOT_AVAILABLE("1101005", "error.1101005", "当前登录方式暂未开放"),
     PERSONAL_TENANT_NOT_FOUND("1101006", "error.1101006", "当前用户无可用个人空间"),
     DEVICE_LIMIT_EXCEEDED("1101007", "error.1101007", "当前在线设备数量已达上限，请先下线其他设备"),
+    SESSION_INVALID("1101008", "error.1101008", "当前会话已失效，请重新登录"),
     LOGIN_TYPE_REQUIRED("1101101", "error.1101101", "登录方式不能为空"),
     LOGIN_TYPE_INVALID("1101102", "error.1101102", "登录方式不合法"),
     ACCOUNT_REQUIRED("1101103", "error.1101103", "账号不能为空"),
@@ -34,7 +35,9 @@ public enum ErrorCodeEnum {
     CREDENTIAL_ALREADY_IN_USE("1201003", "error.1201003", "账号或手机号已被使用"),
     USER_ID_REQUIRED("1201101", "error.1201101", "用户标识不能为空"),
     PAGE_NUMBER_OUT_OF_RANGE("1201102", "error.1201102", "页码超出允许范围"),
-    PAGE_SIZE_OUT_OF_RANGE("1201103", "error.1201103", "每页条数超出允许范围");
+    PAGE_SIZE_OUT_OF_RANGE("1201103", "error.1201103", "每页条数超出允许范围"),
+    TENANT_UNAVAILABLE("1401001", "error.1401001", "空间不可用或当前用户无权进入"),
+    TENANT_CONTEXT_MISMATCH("1401002", "error.1401002", "当前空间已变化，请刷新后重试");
 
     private final String code;
     private final String messageKey;

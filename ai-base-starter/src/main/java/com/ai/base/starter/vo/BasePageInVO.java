@@ -15,8 +15,8 @@ import lombok.Setter;
 public class BasePageInVO {
 
     @Min(value = 1, message = "1201102")
-    private long pageNo = 1;
+    private Integer pageNo = 1;
     @Min(value = 1, message = "1201103")
     @Max(value = 100, message = "1201103")
-    private long pageSize = 20;
+    private Integer pageSize = 10;
 }

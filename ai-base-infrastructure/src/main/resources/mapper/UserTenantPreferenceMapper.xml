@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ai.base.infrastructure.persistence.mapper.UserTenantPreferenceMapper">
+    <update id="updateDefaultTenantId">
+        UPDATE user_tenant_preference
+        SET default_tenant_id = #{tenantId,jdbcType=VARCHAR}, version = version + 1
+        WHERE user_id = #{userId} AND valid = 1
+    </update>
+
+    <update id="updateLastUsedTenantId">
+        UPDATE user_tenant_preference
+        SET last_used_tenant_id = #{tenantId,jdbcType=VARCHAR}, last_used_at = #{usedAt,jdbcType=TIMESTAMP}, version = version + 1
+        WHERE user_id = #{userId} AND valid = 1
+          AND (last_used_at IS NULL OR last_used_at &lt; #{usedAt,jdbcType=TIMESTAMP})
+    </update>
+</mapper>
+

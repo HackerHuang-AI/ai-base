@@ -33,8 +33,8 @@ public class SmsCodeServiceImpl implements SmsCodeService {
     public void sendLoginCode(String mobile) {
         validateMobile(mobile);
         String mobileHash = sha256(mobile);
-        String codeKey = "ai-admin:ai-base:auth:sms-code:" + mobileHash;
-        String limitKey = "ai-admin:ai-base:auth:sms-limit:" + mobileHash;
+        String codeKey = "ai-base:auth:sms-code:" + mobileHash;
+        String limitKey = "ai-base:auth:sms-limit:" + mobileHash;
         if (!Boolean.TRUE.equals(stringRedisTemplate.opsForValue().setIfAbsent(limitKey, "1", SEND_LIMIT_TTL))) {
             throw new BizException(ErrorCodeEnum.SMS_CODE_SEND_TOO_FREQUENT);
         }
@@ -52,7 +52,7 @@ public class SmsCodeServiceImpl implements SmsCodeService {
     @Override
     public void consumeLoginCode(String mobile, String smsCode) {
         validateMobile(mobile);
-        String code = stringRedisTemplate.opsForValue().getAndDelete("ai-admin:ai-base:auth:sms-code:" + sha256(mobile));
+        String code = stringRedisTemplate.opsForValue().getAndDelete("ai-base:auth:sms-code:" + sha256(mobile));
         if (!StringUtils.hasText(smsCode) || !smsCode.equals(code)) {
             throw new BizException(ErrorCodeEnum.SMS_CODE_INVALID);
         }

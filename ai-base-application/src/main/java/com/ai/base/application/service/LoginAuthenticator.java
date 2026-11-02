@@ -13,6 +13,7 @@ import com.ai.base.application.enums.LoginTypeEnum;
 public interface LoginAuthenticator {
     LoginTypeEnum supports();
 
+    /** 认证成功返回账号可用且包含 userId 的身份信息，认证失败、身份未绑定或账号不可用时抛出异常。 */
     AuthenticatedIdentity authenticate(LoginCommand command);
 }
 

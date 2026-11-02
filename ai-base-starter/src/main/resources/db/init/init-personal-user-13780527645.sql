@@ -1,5 +1,5 @@
 -- 人工执行：初始化个人账户 13780527645。
--- 请勿放入 db/migration，避免应用启动时自动创建该账户。
+-- 请勿放入 db/migration 避免应用启动时自动创建该账户。
 
 START TRANSACTION;
 

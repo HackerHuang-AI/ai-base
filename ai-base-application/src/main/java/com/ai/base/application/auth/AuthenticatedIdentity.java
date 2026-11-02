@@ -12,7 +12,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class AuthenticatedIdentity {
-    /** 已绑定用户标识，未绑定时为空。 */
+    /** 认证成功后已解析的用户标识，不为空。 */
     private String userId;
     /** 身份标识类型。 */
     private String identityType;

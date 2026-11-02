@@ -48,5 +48,36 @@
           AND t.valid = 1
         ORDER BY tu.id
     </select>
+    <sql id="availableTenantFrom">
+        FROM tenant_user tu
+        INNER JOIN tenant t ON t.tenant_id = tu.tenant_id
+        WHERE tu.user_id = #{userId}
+          AND tu.status = 1
+          AND tu.valid = 1
+          AND t.status = 1
+          AND t.valid = 1
+    </sql>
+
+    <select id="countAvailableByUserId" resultType="long">
+        SELECT COUNT(*)
+        <include refid="availableTenantFrom"/>
+    </select>
+
+    <select id="selectAvailablePageByUserId" resultType="com.ai.base.infrastructure.persistence.dto.UserTenantRow">
+        SELECT t.tenant_id AS tenantId,
+               t.tenant_name AS tenantName,
+               t.tenant_type AS tenantType
+        <include refid="availableTenantFrom"/>
+        ORDER BY t.tenant_type, tu.id
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="selectAvailableByUserIdAndTenantId" resultType="com.ai.base.infrastructure.persistence.dto.UserTenantRow">
+        SELECT t.tenant_id AS tenantId,
+               t.tenant_name AS tenantName,
+               t.tenant_type AS tenantType
+        <include refid="availableTenantFrom"/>
+          AND tu.tenant_id = #{tenantId}
+    </select>
 </mapper>
 

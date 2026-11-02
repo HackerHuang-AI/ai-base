@@ -3,6 +3,7 @@ package com.ai.base.application.service;
 import com.ai.base.application.auth.LoginCommand;
 import com.ai.base.application.auth.LoginResult;
 import com.ai.base.application.auth.SessionInfo;
+import com.ai.base.application.bo.UserTenantBO;
 
 import java.util.List;
 
@@ -22,5 +23,7 @@ public interface LoginService {
     void logoutAll();
 
     List<SessionInfo> listSessions();
+
+    UserTenantBO switchTenant(String tenantId);
 }
 
