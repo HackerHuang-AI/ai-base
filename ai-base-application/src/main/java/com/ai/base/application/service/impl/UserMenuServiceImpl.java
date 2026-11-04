@@ -64,6 +64,7 @@ public class UserMenuServiceImpl implements UserMenuService {
             UserMenuBO node = new UserMenuBO();
             node.setMenuCode(row.getMenuCode());
             node.setResourceName(row.getResourceName());
+            node.setDesc(row.getDesc());
             node.setResourceType(row.getResourceType());
             node.setRoutePath(row.getRoutePath());
             node.setIcon(row.getIcon());

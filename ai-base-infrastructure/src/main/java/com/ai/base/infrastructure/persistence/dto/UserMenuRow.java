@@ -15,6 +15,8 @@ public class UserMenuRow {
     private String menuCode;
     /** 导航展示名称。 */
     private String resourceName;
+    /** 菜单描述。 */
+    private String desc;
     /** 资源类型：1-目录，2-页面。 */
     private Integer resourceType;
     /** 页面路由路径。 */

@@ -1,5 +1,6 @@
 package com.ai.base.starter.common;
 
+import com.ai.base.application.bo.BasePageOutBO;
 import com.ai.base.application.enums.ErrorCodeEnum;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,46 @@ class ResultSerializationTest {
         String json = objectMapper.writeValueAsString(Result.success("data"));
 
         assertThat(json).isEqualTo("{\"code\":\"00\",\"message\":\"成功\",\"data\":\"data\"}");
+    }
+
+    @Test
+    void pageShouldOmitUnsetOptionalFields() {
+        BasePageOutBO<String> page = new BasePageOutBO<>();
+        page.setPageNo(1);
+        page.setPageSize(10);
+        page.setRecords(List.of());
+
+        var data = objectMapper.valueToTree(Result.success(page)).get("data");
+
+        assertThat(data.size()).isEqualTo(3);
+        assertThat(data.get("pageNo").intValue()).isEqualTo(1);
+        assertThat(data.get("pageSize").intValue()).isEqualTo(10);
+        assertThat(data.has("total")).isFalse();
+        assertThat(data.has("totalPages")).isFalse();
+        assertThat(data.has("hasNext")).isFalse();
+    }
+
+    @Test
+    void pageShouldIncludeOptionalFieldsWhenSet() {
+        BasePageOutBO<String> page = new BasePageOutBO<>();
+        page.setTotal(4_294_967_296L);
+        page.setTotalPages(4_294_967_296L);
+        page.setHasNext(true);
+
+        var data = objectMapper.valueToTree(Result.success(page)).get("data");
+
+        assertThat(data.get("total").longValue()).isEqualTo(4_294_967_296L);
+        assertThat(data.get("totalPages").longValue()).isEqualTo(4_294_967_296L);
+        assertThat(data.get("hasNext").booleanValue()).isTrue();
+
+        page.setTotal(0L);
+        page.setTotalPages(0L);
+        page.setHasNext(false);
+        data = objectMapper.valueToTree(Result.success(page)).get("data");
+
+        assertThat(data.get("total").longValue()).isZero();
+        assertThat(data.get("totalPages").longValue()).isZero();
+        assertThat(data.get("hasNext").booleanValue()).isFalse();
     }
 
     @Test

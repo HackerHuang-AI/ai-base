@@ -4,6 +4,7 @@ import com.ai.base.application.auth.*;
 import com.ai.base.application.bo.UserTenantBO;
 import com.ai.base.application.bo.UserTenantPreferenceBO;
 import com.ai.base.application.common.BizException;
+import com.ai.base.application.common.TraceContextSupport;
 import com.ai.base.application.config.BaseAuthConfig;
 import com.ai.base.application.enums.ErrorCodeEnum;
 import com.ai.base.application.enums.LoginTypeEnum;
@@ -239,13 +240,13 @@ public class LoginServiceImpl implements LoginService {
         audit.setUserAgent(command.getUserAgent());
         audit.setLoginAt(LocalDateTime.now());
         try {
-            loginAuditExecutor.execute(() -> {
+            loginAuditExecutor.execute(TraceContextSupport.wrap(() -> {
                 try {
                     loginAuditMapper.insert(audit);
                 } catch (Exception exception) {
                     log.error("[LoginAudit] 写入登录审计失败, userId={}", userId, exception);
                 }
-            });
+            }));
         } catch (RuntimeException exception) {
             log.error("[LoginAudit] 审计任务提交失败, userId={}", userId, exception);
         }

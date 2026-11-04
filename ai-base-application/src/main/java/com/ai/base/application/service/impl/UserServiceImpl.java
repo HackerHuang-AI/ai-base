@@ -210,8 +210,8 @@ public class UserServiceImpl implements UserService {
         UserInfoEntity userInfo = toUserInfoEntity(query);
         BasePageOutBO<UserProfileBO> result = new BasePageOutBO<>();
         result.setTotal(userExtensionMapper.countByQuery(user, userInfo, query.getCreatedEndTime()));
-        result.setPageNo(query.getPageNo());
-        result.setPageSize(query.getPageSize());
+        result.setPageNo(Math.toIntExact(query.getPageNo()));
+        result.setPageSize(Math.toIntExact(query.getPageSize()));
         result.setRecords(userExtensionMapper.selectPageByQuery(user, userInfo, query.getCreatedEndTime(),
                         (query.getPageNo() - 1) * query.getPageSize(), query.getPageSize()).stream()
                 .map(this::toProfile)

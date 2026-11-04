@@ -51,8 +51,11 @@ class UserMenuServiceImplTest {
 
         assertThat(tree).extracting(UserMenuBO::getMenuCode).containsExactly("HOME", "AI");
         assertThat(tree.get(0).getChildren()).isEmpty();
+        assertThat(tree.get(0).getDesc()).isEqualTo("HOME描述");
+        assertThat(tree.get(1).getDesc()).isEqualTo("AI描述");
         assertThat(tree.get(1).getChildren()).extracting(UserMenuBO::getMenuCode).containsExactly("MODELS");
         assertThat(tree.get(1).getChildren().get(0).getRoutePath()).isEqualTo("/MODELS");
+        assertThat(tree.get(1).getChildren().get(0).getDesc()).isEqualTo("MODELS描述");
         var order = inOrder(tenantUserService, mapper);
         order.verify(tenantUserService).requireAvailable(USER_ID, TENANT_ID);
         order.verify(mapper).selectPersonalMenus();
@@ -70,6 +73,8 @@ class UserMenuServiceImplTest {
         List<UserMenuBO> tree = service.treeCurrent();
 
         assertThat(tree).extracting(UserMenuBO::getMenuCode).containsExactly("AI");
+        assertThat(tree.get(0).getDesc()).isEqualTo("AI描述");
+        assertThat(tree.get(0).getChildren().get(0).getChildren().get(0).getDesc()).isEqualTo("MODELS描述");
         assertThat(tree.get(0).getChildren()).extracting(UserMenuBO::getMenuCode).containsExactly("MARKET");
         assertThat(tree.get(0).getChildren().get(0).getChildren())
                 .extracting(UserMenuBO::getMenuCode).containsExactly("MODELS");
@@ -108,12 +113,14 @@ class UserMenuServiceImplTest {
 
     @Test
     void pageNodesCanContainVisibleChildPages() {
+        UserMenuRow profile = row(3, 2L, "PROFILE", 2, true, 1);
+        profile.setDesc(null);
         when(mapper.selectPersonalMenus()).thenReturn(List.of(
-                row(1, null, "ROOT", 1, true, 0), row(2, 1L, "HOME", 2, true, 1),
-                row(3, 2L, "PROFILE", 2, true, 1)));
+                row(1, null, "ROOT", 1, true, 0), row(2, 1L, "HOME", 2, true, 1), profile));
 
         assertThat(service.treeCurrent().get(0).getChildren())
                 .extracting(UserMenuBO::getMenuCode).containsExactly("PROFILE");
+        assertThat(service.treeCurrent().get(0).getChildren().get(0).getDesc()).isNull();
     }
 
     @Test
@@ -188,6 +195,7 @@ class UserMenuServiceImplTest {
         row.setParentId(parentId);
         row.setMenuCode(code);
         row.setResourceName(code + "菜单");
+        row.setDesc(code + "描述");
         row.setResourceType(type);
         row.setRoutePath(type == 2 ? "/" + code : null);
         row.setIcon("icon-" + code);

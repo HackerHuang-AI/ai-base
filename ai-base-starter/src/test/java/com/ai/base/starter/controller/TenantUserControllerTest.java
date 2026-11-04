@@ -39,7 +39,7 @@ class TenantUserControllerTest {
         BasePageOutBO<UserTenantBO> page = new BasePageOutBO<>();
         page.setPageNo(3);
         page.setPageSize(20);
-        page.setTotal(41);
+        page.setTotal(41L);
         page.setRecords(List.of(new UserTenantBO()));
         when(tenantUserService.pageCurrent(3, 20)).thenReturn(page);
 

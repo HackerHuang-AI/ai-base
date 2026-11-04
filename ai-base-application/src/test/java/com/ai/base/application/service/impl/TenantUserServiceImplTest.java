@@ -52,8 +52,8 @@ class TenantUserServiceImplTest {
         var result = service.pageCurrent(2, 2);
 
         assertThat(result.getTotal()).isEqualTo(4_294_967_296L);
-        assertThat(result.getPageNo()).isEqualTo(2L);
-        assertThat(result.getPageSize()).isEqualTo(2L);
+        assertThat(result.getPageNo()).isEqualTo(2);
+        assertThat(result.getPageSize()).isEqualTo(2);
         assertThat(result.getRecords()).extracting(UserTenantBO::getTenantId).containsExactly("tenant-z", "tenant-a");
         assertThat(result.getRecords()).extracting(UserTenantBO::getTenantName).containsExactly("企业空间", "个人空间");
         assertThat(result.getRecords()).extracting(UserTenantBO::getTenantType).containsExactly(2, 1);
@@ -80,8 +80,8 @@ class TenantUserServiceImplTest {
 
         var result = service.pageCurrent(Integer.MAX_VALUE, 100);
 
-        assertThat(result.getPageNo()).isEqualTo((long) Integer.MAX_VALUE);
-        assertThat(result.getPageSize()).isEqualTo(100L);
+        assertThat(result.getPageNo()).isEqualTo(Integer.MAX_VALUE);
+        assertThat(result.getPageSize()).isEqualTo(100);
         assertThat(result.getTotal()).isZero();
         assertThat(result.getRecords()).isEmpty();
         verify(mapper).selectAvailablePageByUserId(USER_ID, 214_748_364_600L, 100);
@@ -114,8 +114,8 @@ class TenantUserServiceImplTest {
 
             var result = service.pageCurrent(1, pageSize);
 
-            assertThat(result.getPageNo()).isEqualTo(1L);
-            assertThat(result.getPageSize()).isEqualTo((long) pageSize);
+            assertThat(result.getPageNo()).isEqualTo(1);
+            assertThat(result.getPageSize()).isEqualTo(pageSize);
             assertThat(result.getRecords()).isEmpty();
             verify(mapper).selectAvailablePageByUserId(USER_ID, 0L, pageSize);
         }

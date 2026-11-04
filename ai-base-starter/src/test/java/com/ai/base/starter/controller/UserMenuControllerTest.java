@@ -32,6 +32,7 @@ class UserMenuControllerTest {
         UserMenuBO node = new UserMenuBO();
         node.setMenuCode("HOME");
         node.setResourceName("首页");
+        node.setDesc("用户端首页入口。");
         node.setResourceType(2);
         node.setRoutePath("/home");
         node.setIcon("home");
@@ -47,6 +48,7 @@ class UserMenuControllerTest {
         var menu = json.get("data").get(0);
         assertThat(menu.get("menuCode").asText()).isEqualTo("HOME");
         assertThat(menu.get("resourceName").asText()).isEqualTo("首页");
+        assertThat(menu.get("desc").asText()).isEqualTo("用户端首页入口。");
         assertThat(menu.get("resourceType").asInt()).isEqualTo(2);
         assertThat(menu.get("routePath").asText()).isEqualTo("/home");
         assertThat(menu.get("children").isArray()).isTrue();

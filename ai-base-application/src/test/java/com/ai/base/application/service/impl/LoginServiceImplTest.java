@@ -36,6 +36,9 @@ import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.MDC;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -48,6 +51,8 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -202,6 +207,42 @@ class LoginServiceImplTest {
         assertThat(session.path("ttlMillis").longValue()).isEqualTo(Duration.ofMinutes(120).toMillis());
         assertThat(session.path("renewWindowMillis").longValue()).isEqualTo(Duration.ofMinutes(30).toMillis());
         verifyNoInteractions(userMapper);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void loginAuditPropagatesAndClearsTraceContext(boolean insertFails) throws Exception {
+        LoginCommand command = prepareLogin("device-0000000001");
+        when(tenantUserExtensionMapper.selectPersonalTenantId(USER_ID)).thenReturn("tenant-1");
+        RequestContext context = RequestContextHolder.current().orElseThrow();
+        doAnswer(invocation -> {
+            assertThat(RequestContextHolder.current()).contains(context);
+            assertThat(MDC.get("traceId")).isEqualTo(context.traceId());
+            assertThat(MDC.get("callChain")).isEqualTo(context.callChain());
+            if (insertFails) {
+                throw new IllegalStateException("audit insert failed");
+            }
+            return 1;
+        }).when(loginAuditMapper).insert(any(LoginAuditEntity.class));
+        org.mockito.ArgumentCaptor<Runnable> task = org.mockito.ArgumentCaptor.forClass(Runnable.class);
+        var executor = Executors.newSingleThreadExecutor();
+        try {
+            MDC.put("traceId", context.traceId());
+            MDC.put("callChain", context.callChain());
+            loginService.login(command);
+            verify(loginAuditExecutor).execute(task.capture());
+            RequestContextHolder.clear();
+            MDC.clear();
+            executor.submit(() -> {
+                task.getValue().run();
+                assertThat(RequestContextHolder.current()).isEmpty();
+                assertThat(MDC.getCopyOfContextMap()).isNullOrEmpty();
+            }).get(5, TimeUnit.SECONDS);
+            verify(loginAuditMapper).insert(any(LoginAuditEntity.class));
+        } finally {
+            executor.shutdownNow();
+            MDC.clear();
+        }
     }
 
     @Test

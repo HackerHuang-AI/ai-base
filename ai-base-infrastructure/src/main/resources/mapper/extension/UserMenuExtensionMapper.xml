@@ -3,7 +3,7 @@
 <mapper namespace="com.ai.base.infrastructure.persistence.mapper.extension.UserMenuExtensionMapper">
     <select id="selectPersonalMenus" resultType="com.ai.base.infrastructure.persistence.dto.UserMenuRow">
         SELECT id, parent_personal_menu_id AS parentId, menu_code AS menuCode,
-               resource_name AS resourceName, resource_type AS resourceType,
+               resource_name AS resourceName, `desc`, resource_type AS resourceType,
                route_path AS routePath, icon, sort_no AS sortNo, 1 AS authorized
         FROM personal_tenant_menu
         WHERE status = 1 AND valid = 1 AND resource_type IN (1, 2)
@@ -12,7 +12,7 @@
 
     <select id="selectTenantMenus" resultType="com.ai.base.infrastructure.persistence.dto.UserMenuRow">
         SELECT m.id, m.parent_tenant_menu_id AS parentId, m.menu_code AS menuCode,
-               m.resource_name AS resourceName, m.resource_type AS resourceType,
+               m.resource_name AS resourceName, m.`desc`, m.resource_type AS resourceType,
                m.route_path AS routePath, m.icon, m.sort_no AS sortNo,
                EXISTS (
                    SELECT 1

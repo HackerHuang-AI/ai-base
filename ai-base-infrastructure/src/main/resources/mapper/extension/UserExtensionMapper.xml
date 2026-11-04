@@ -27,11 +27,11 @@
         <if test="user.status != null">
             AND u.status = #{user.status}
         </if>
-        <if test="user.ctime != null">
-            AND u.ctime <![CDATA[ >= ]]> #{user.ctime}
+        <if test="user.createTime != null">
+            AND u.create_time <![CDATA[ >= ]]> #{user.createTime}
         </if>
         <if test="createdEndTime != null">
-            AND u.ctime <![CDATA[ <= ]]> #{createdEndTime}
+            AND u.create_time <![CDATA[ <= ]]> #{createdEndTime}
         </if>
     </sql>
 
@@ -54,7 +54,7 @@
         FROM base_user u
         LEFT JOIN user_info ui ON ui.user_id = u.user_id AND ui.valid = 1
         <include refid="queryCondition"/>
-        ORDER BY u.ctime DESC, u.id DESC
+        ORDER BY u.create_time DESC, u.id DESC
         LIMIT #{offset}, #{pageSize}
     </select>
 

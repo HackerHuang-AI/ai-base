@@ -1,5 +1,7 @@
 package com.ai.base.starter.common;
 
+import com.ai.base.infrastructure.persistence.entity.UserEntity;
+import com.ai.base.infrastructure.persistence.entity.UserInfoEntity;
 import org.apache.ibatis.builder.xml.XMLMapperBuilder;
 import org.apache.ibatis.io.Resources;
 import org.apache.ibatis.mapping.BoundSql;
@@ -20,7 +22,7 @@ class TenantMapperSqlTest {
     void setUp() throws Exception {
         configuration = new Configuration();
         for (String resource : new String[]{"mapper/extension/TenantUserExtensionMapper.xml", "mapper/UserTenantPreferenceMapper.xml",
-                "mapper/extension/UserMenuExtensionMapper.xml"}) {
+                "mapper/extension/UserMenuExtensionMapper.xml", "mapper/extension/UserExtensionMapper.xml"}) {
             try (var stream = Resources.getResourceAsStream(resource)) {
                 new XMLMapperBuilder(stream, configuration, resource, configuration.getSqlFragments()).parse();
             }
@@ -71,6 +73,7 @@ class TenantMapperSqlTest {
         String text = query.getSql().replaceAll("\\s+", " ").trim();
 
         assertThat(text).contains("FROM personal_tenant_menu", "status = 1 AND valid = 1 AND resource_type IN (1, 2)",
+                        "resource_name AS resourceName, `desc`, resource_type AS resourceType",
                         "1 AS authorized", "ORDER BY sort_no, id")
                 .doesNotContain("tenant_id", "menu_template", "user_role");
         assertThat(query.getParameterMappings()).isEmpty();
@@ -82,7 +85,8 @@ class TenantMapperSqlTest {
                 Map.of("userId", "user-1", "tenantId", "tenant-1"));
         String text = query.getSql().replaceAll("\\s+", " ").trim();
 
-        assertThat(text).contains("EXISTS (", "r.tenant_id = ur.tenant_id AND r.id = ur.role_id",
+        assertThat(text).contains("m.resource_name AS resourceName, m.`desc`, m.resource_type AS resourceType",
+                        "EXISTS (", "r.tenant_id = ur.tenant_id AND r.id = ur.role_id",
                         "rm.tenant_id = r.tenant_id AND rm.role_id = r.id",
                         "granted.tenant_id = rm.tenant_id AND granted.id = rm.tenant_menu_id",
                         "ur.user_id = ? AND ur.tenant_id = ?", "m.tenant_id = ?",
@@ -95,6 +99,37 @@ class TenantMapperSqlTest {
                         "m.status = 1 AND m.valid = 1 AND m.resource_type IN (1, 2)", "ORDER BY m.sort_no, m.id")
                 .doesNotContain(" LIKE ", "TENANT_ADMIN", "role_code", "menu_template");
         assertThat(query.getParameterMappings()).extracting("property").containsExactly("userId", "tenantId", "tenantId");
+    }
+
+    @Test
+    void userQueriesMatchCreationTimeMappingWithAndWithoutBounds() {
+        String namespace = "com.ai.base.infrastructure.persistence.mapper.extension.UserExtensionMapper.";
+        for (boolean hasStart : new boolean[]{false, true}) {
+            for (boolean hasEnd : new boolean[]{false, true}) {
+                UserEntity user = new UserEntity();
+                user.setCreateTime(hasStart ? LocalDateTime.of(2026, 10, 1, 0, 0) : null);
+                Map<String, Object> parameters = new HashMap<>();
+                parameters.put("user", user);
+                parameters.put("userInfo", new UserInfoEntity());
+                parameters.put("createdEndTime", hasEnd ? LocalDateTime.of(2026, 11, 1, 0, 0) : null);
+                parameters.put("offset", 0L);
+                parameters.put("pageSize", 20L);
+                for (String method : new String[]{"countByQuery", "selectPageByQuery"}) {
+                    BoundSql query = sql(namespace + method, parameters);
+                    String text = query.getSql().replaceAll("\\s+", " ").trim();
+                    assertThat(text).doesNotContain("ctime", "utime");
+                    assertThat(text.contains("AND u.create_time >= ?")).isEqualTo(hasStart);
+                    assertThat(text.contains("AND u.create_time <= ?")).isEqualTo(hasEnd);
+                    assertThat(query.getParameterMappings().stream().anyMatch(mapping -> mapping.getProperty().equals("user.createTime")))
+                            .isEqualTo(hasStart);
+                    assertThat(query.getParameterMappings().stream().anyMatch(mapping -> mapping.getProperty().equals("createdEndTime")))
+                            .isEqualTo(hasEnd);
+                    if (method.equals("selectPageByQuery")) {
+                        assertThat(text).contains("ORDER BY u.create_time DESC, u.id DESC LIMIT ?, ?");
+                    }
+                }
+            }
+        }
     }
 
     private BoundSql sql(String statement, Map<String, Object> parameters) {
