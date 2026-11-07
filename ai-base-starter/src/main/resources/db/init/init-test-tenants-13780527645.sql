@@ -20,16 +20,16 @@ INSERT INTO `tenant_user` (`id`, `tenant_id`, `user_id`, `status`, `joined_at`, 
 (2104843632644194314, 'ten_94d3f14e-0118-47c0-bd33-f8254160436e', 'usr_01a0ec2d-6e59-7b03-a166-737bb077d6e3', 1, NOW(), 'usr_01a0ec2d-6e59-7b03-a166-737bb077d6e3', 'usr_01a0ec2d-6e59-7b03-a166-737bb077d6e3', 1, 0);
 
 -- 租户菜单从现有模板复制，父菜单 ID 同步映射，按层级先插入父节点。
-INSERT INTO `tenant_menu` (`id`, `tenant_id`, `menu_code`, `resource_name`, `resource_type`, `route_path`, `parent_tenant_menu_id`, `men_path`, `menu_level`, `icon`, `sort_no`, `deletable`, `status`, `valid`, `version`)
+INSERT INTO `tenant_menu` (`id`, `tenant_id`, `menu_code`, `resource_name`, `desc`, `resource_type`, `route_path`, `parent_tenant_menu_id`, `men_path`, `menu_level`, `icon`, `sort_no`, `deletable`, `status`, `valid`, `version`)
 SELECT 2104843632644200000 + id, 'ten_5e9d540d-4bfa-4564-a68c-49fd1570e182',
-       menu_code, resource_name, resource_type, route_path, 2104843632644200000 + parent_menu_template_id,
+       menu_code, resource_name, `desc`, resource_type, route_path, 2104843632644200000 + parent_menu_template_id,
        men_path, menu_level, icon, sort_no, deletable, status, valid, 0
 FROM `menu_template`
 ORDER BY menu_level, id;
 
-INSERT INTO `tenant_menu` (`id`, `tenant_id`, `menu_code`, `resource_name`, `resource_type`, `route_path`, `parent_tenant_menu_id`, `men_path`, `menu_level`, `icon`, `sort_no`, `deletable`, `status`, `valid`, `version`)
+INSERT INTO `tenant_menu` (`id`, `tenant_id`, `menu_code`, `resource_name`, `desc`, `resource_type`, `route_path`, `parent_tenant_menu_id`, `men_path`, `menu_level`, `icon`, `sort_no`, `deletable`, `status`, `valid`, `version`)
 SELECT 2104843632644201000 + id, 'ten_94d3f14e-0118-47c0-bd33-f8254160436e',
-       menu_code, resource_name, resource_type, route_path, 2104843632644201000 + parent_menu_template_id,
+       menu_code, resource_name, `desc`, resource_type, route_path, 2104843632644201000 + parent_menu_template_id,
        men_path, menu_level, icon, sort_no, deletable, status, valid, 0
 FROM `menu_template`
 ORDER BY menu_level, id;
