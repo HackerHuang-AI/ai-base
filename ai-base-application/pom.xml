@@ -15,13 +15,15 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
         </dependency>
+        <!-- 事务与数据访问异常（@Transactional / DuplicateKeyException），声明式事务属业务语义 -->
         <dependency>
-            <groupId>com.ai.base</groupId>
-            <artifactId>ai-base-infrastructure</artifactId>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
         </dependency>
+        <!-- 仅使用 Jackson 注解（@JsonValue / @JsonInclude），序列化实现在 infrastructure -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
+            <artifactId>jackson-annotations</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.security</groupId>

@@ -2,98 +2,85 @@ package com.ai.base.application.service.impl;
 
 import com.ai.base.application.auth.AuthenticatedIdentity;
 import com.ai.base.application.auth.LoginCommand;
+import com.ai.base.application.auth.LoginResult;
 import com.ai.base.application.auth.SessionInfo;
+import com.ai.base.application.bo.UserAccountBO;
 import com.ai.base.application.bo.UserTenantBO;
 import com.ai.base.application.bo.UserTenantPreferenceBO;
+import com.ai.base.application.bo.UserIdentityBO;
 import com.ai.base.application.common.BizException;
 import com.ai.base.application.config.BaseAuthConfig;
 import com.ai.base.application.enums.ErrorCodeEnum;
 import com.ai.base.application.enums.IdentityProviderEnum;
 import com.ai.base.application.enums.IdentityTypeEnum;
 import com.ai.base.application.enums.LoginTypeEnum;
+import com.ai.base.application.model.LoginAuditEntry;
+import com.ai.base.application.model.SessionRecord;
 import com.ai.base.application.model.request.RequestContext;
 import com.ai.base.application.model.request.RequestContextHolder;
+import com.ai.base.application.port.AuthPolicyPort;
+import com.ai.base.application.port.LoginAuditPort;
+import com.ai.base.application.port.SessionStore;
+import com.ai.base.application.port.UserAccountPort;
 import com.ai.base.application.service.LoginAuthenticator;
 import com.ai.base.application.service.SmsCodeService;
 import com.ai.base.application.service.TenantUserService;
 import com.ai.base.application.service.UserTenantPreferenceService;
-import com.ai.base.infrastructure.config.NacosConfig;
-import com.ai.base.infrastructure.enums.NacosDataIdEnum;
-import com.ai.base.infrastructure.persistence.dto.UserTenantRow;
-import com.ai.base.infrastructure.persistence.entity.LoginAuditEntity;
-import com.ai.base.infrastructure.persistence.entity.UserEntity;
-import com.ai.base.infrastructure.persistence.entity.UserIdentityEntity;
-import com.ai.base.infrastructure.persistence.mapper.LoginAuditMapper;
-import com.ai.base.infrastructure.persistence.mapper.UserIdentityMapper;
-import com.ai.base.infrastructure.persistence.mapper.UserMapper;
-import com.ai.base.infrastructure.persistence.mapper.extension.TenantUserExtensionMapper;
-import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.MDC;
-import org.springframework.data.redis.core.HashOperations;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.data.redis.core.script.RedisScript;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class LoginServiceImplTest {
     private static final String USER_ID = "user-1";
     private static final String SESSION_ID = "session-1";
     private static final String TOKEN_HASH = "token-hash";
+    private static final String DEVICE_ID = "device-0000000001";
 
-    private StringRedisTemplate redisTemplate;
-    private ValueOperations<String, String> valueOperations;
-    private HashOperations<String, Object, Object> hashOperations;
-    private ThreadPoolTaskExecutor loginAuditExecutor;
+    private SessionStore sessionStore;
+    private AuthPolicyPort authPolicyPort;
+    private LoginAuditPort loginAuditPort;
+    /** 捕获式替身：收集提交的审计任务，测试手动执行以模拟异步调度 */
+    private final List<Runnable> submittedAuditTasks = new ArrayList<>();
+    private Executor loginAuditExecutor;
     private LoginServiceImpl loginService;
-    private NacosConfig nacosConfig;
-    private UserMapper userMapper;
-    private TenantUserExtensionMapper tenantUserExtensionMapper;
-    private LoginAuditMapper loginAuditMapper;
     private TenantUserService tenantUserService;
     private UserTenantPreferenceService preferenceService;
 
     @BeforeEach
     void setUp() {
-        redisTemplate = mock(StringRedisTemplate.class);
-        valueOperations = mock(ValueOperations.class);
-        hashOperations = mock(HashOperations.class);
-        loginAuditExecutor = mock(ThreadPoolTaskExecutor.class);
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(redisTemplate.opsForHash()).thenReturn(hashOperations);
-        userMapper = mock(UserMapper.class);
-        tenantUserExtensionMapper = mock(TenantUserExtensionMapper.class);
-        loginAuditMapper = mock(LoginAuditMapper.class);
-        nacosConfig = mock(NacosConfig.class);
+        sessionStore = mock(SessionStore.class);
+        authPolicyPort = mock(AuthPolicyPort.class);
+        loginAuditPort = mock(LoginAuditPort.class);
+        submittedAuditTasks.clear();
+        loginAuditExecutor = submittedAuditTasks::add;
         tenantUserService = mock(TenantUserService.class);
         preferenceService = mock(UserTenantPreferenceService.class);
-        when(nacosConfig.getDataIdAsObject(NacosDataIdEnum.AI_BASE_AUTH, BaseAuthConfig.class))
-                .thenReturn(baseAuthConfig(5));
+        when(authPolicyPort.authConfig()).thenReturn(baseAuthConfig(5));
+        when(sessionStore.replaceDeviceSlot(anyString(), anyString(), anyString(), any(), anyInt()))
+                .thenReturn(new SessionStore.DeviceSlot("", false));
         loginService = new LoginServiceImpl(List.of(),
-                tenantUserExtensionMapper, loginAuditMapper, redisTemplate,
-                new ObjectMapper().findAndRegisterModules(), nacosConfig, loginAuditExecutor, tenantUserService, preferenceService);
+                sessionStore, authPolicyPort, loginAuditPort, loginAuditExecutor, tenantUserService, preferenceService);
         RequestContextHolder.set(new RequestContext("trace-1", "traceparent", USER_ID, "tenant-1", SESSION_ID, "ai-base"));
     }
 
@@ -103,59 +90,42 @@ class LoginServiceImplTest {
     }
 
     @Test
-    void logoutDeletesOwnedSessionAndIndexes() throws Exception {
-        when(valueOperations.get("ai-base:auth:session-id:{" + SESSION_ID + "}")).thenReturn(TOKEN_HASH);
-        when(valueOperations.get("ai-base:auth:session:{" + TOKEN_HASH + "}"))
-                .thenReturn(sessionJson(USER_ID, SESSION_ID, "10.0.0.1"));
+    void logoutDeletesOwnedSessionAndIndexes() {
+        stubSession(SESSION_ID, TOKEN_HASH, record(USER_ID, SESSION_ID, "10.0.0.1"));
 
         loginService.logout(SESSION_ID);
 
-        verify(redisTemplate).delete("ai-base:auth:session:{" + TOKEN_HASH + "}");
-        verify(redisTemplate).delete("ai-base:auth:session-id:{" + SESSION_ID + "}");
-        verify(hashOperations).delete("ai-base:auth:user-sessions:{" + USER_ID + "}", "device-0000000001");
+        verify(sessionStore).deleteSession(TOKEN_HASH, SESSION_ID);
+        verify(sessionStore).removeDevice(USER_ID, DEVICE_ID);
     }
 
     @Test
-    void logoutDoesNotDeleteAnotherUsersSession() throws Exception {
-        when(valueOperations.get("ai-base:auth:session-id:{" + SESSION_ID + "}")).thenReturn(TOKEN_HASH);
-        when(valueOperations.get("ai-base:auth:session:{" + TOKEN_HASH + "}"))
-                .thenReturn(sessionJson("user-2", SESSION_ID, "10.0.0.1"));
+    void logoutDoesNotDeleteAnotherUsersSession() {
+        stubSession(SESSION_ID, TOKEN_HASH, record("user-2", SESSION_ID, "10.0.0.1"));
 
         loginService.logout();
 
-        verify(redisTemplate, never()).delete("ai-base:auth:session:{" + TOKEN_HASH + "}");
-        verify(redisTemplate, never()).delete("ai-base:auth:session-id:{" + SESSION_ID + "}");
-        verify(hashOperations, never()).delete("ai-base:auth:user-sessions:{" + USER_ID + "}", "device-0000000001");
+        verify(sessionStore, never()).deleteSession(TOKEN_HASH, SESSION_ID);
+        verify(sessionStore, never()).removeDevice(USER_ID, DEVICE_ID);
     }
 
     @Test
-    void logoutAllInvalidatesEveryOwnedSession() throws Exception {
-        when(hashOperations.values("ai-base:auth:user-sessions:{" + USER_ID + "}"))
-                .thenReturn(List.of("session-1", "session-2"));
-        when(valueOperations.get("ai-base:auth:session-id:{session-1}")).thenReturn("token-1");
-        when(valueOperations.get("ai-base:auth:session-id:{session-2}")).thenReturn("token-2");
-        when(valueOperations.get("ai-base:auth:session:{token-1}"))
-                .thenReturn(sessionJson(USER_ID, "session-1", "10.0.0.1"));
-        when(valueOperations.get("ai-base:auth:session:{token-2}"))
-                .thenReturn(sessionJson(USER_ID, "session-2", "10.0.0.2"));
+    void logoutAllInvalidatesEveryOwnedSession() {
+        when(sessionStore.listSessionIds(USER_ID)).thenReturn(List.of("session-1", "session-2"));
+        stubSession("session-1", "token-1", record(USER_ID, "session-1", "10.0.0.1"));
+        stubSession("session-2", "token-2", record(USER_ID, "session-2", "10.0.0.2"));
 
         loginService.logoutAll();
 
-        verify(redisTemplate).delete("ai-base:auth:session:{token-1}");
-        verify(redisTemplate).delete("ai-base:auth:session-id:{session-1}");
-        verify(redisTemplate).delete("ai-base:auth:session:{token-2}");
-        verify(redisTemplate).delete("ai-base:auth:session-id:{session-2}");
+        verify(sessionStore).deleteSession("token-1", "session-1");
+        verify(sessionStore).deleteSession("token-2", "session-2");
     }
 
     @Test
-    void listSessionsReturnsOnlyOwnedActiveSessions() throws Exception {
-        when(hashOperations.values("ai-base:auth:user-sessions:{" + USER_ID + "}"))
-                .thenReturn(List.of("session-1", "session-2"));
-        when(valueOperations.get("ai-base:auth:session-id:{session-1}")).thenReturn("token-1");
-        when(valueOperations.get("ai-base:auth:session-id:{session-2}")).thenReturn("token-2");
-        when(valueOperations.get("ai-base:auth:session:{token-1}"))
-                .thenReturn(sessionJson(USER_ID, "session-1", "10.0.0.1"));
-        when(valueOperations.get("ai-base:auth:session:{token-2}")).thenReturn(null);
+    void listSessionsReturnsOnlyOwnedActiveSessions() {
+        when(sessionStore.listSessionIds(USER_ID)).thenReturn(List.of("session-1", "session-2"));
+        stubSession("session-1", "token-1", record(USER_ID, "session-1", "10.0.0.1"));
+        stubSession("session-2", "token-2", null);
 
         List<SessionInfo> sessions = loginService.listSessions();
 
@@ -164,7 +134,7 @@ class LoginServiceImplTest {
             assertThat(session.isCurrent()).isTrue();
             assertThat(session.getLoginIp()).isEqualTo("10.0.0.1");
         });
-        verify(hashOperations, never()).delete("ai-base:auth:user-sessions:{" + USER_ID + "}", "device-0000000001");
+        verify(sessionStore, never()).removeDevice(anyString(), anyString());
     }
 
     @Test
@@ -174,71 +144,63 @@ class LoginServiceImplTest {
         AuthenticatedIdentity identity = new AuthenticatedIdentity();
         identity.setUserId(USER_ID);
         identity.setIdentityValue("13800000000");
-        when(authenticator.authenticate(org.mockito.ArgumentMatchers.any(LoginCommand.class))).thenReturn(identity);
-        when(tenantUserExtensionMapper.selectPersonalTenantId(USER_ID)).thenReturn("tenant-1");
-        when(nacosConfig.getDataIdAsObject(NacosDataIdEnum.AI_BASE_AUTH, BaseAuthConfig.class))
-                .thenReturn(baseAuthConfig(5, 120, 30));
-
-        LoginCommand command = new LoginCommand();
-        command.setLoginType(LoginTypeEnum.ACCOUNT_PASSWORD.getValue());
-        command.setDeviceId("device-0000000001");
+        when(authenticator.authenticate(any(LoginCommand.class))).thenReturn(identity);
+        when(tenantUserService.findPersonalTenantId(USER_ID)).thenReturn(Optional.of("tenant-1"));
+        when(authPolicyPort.authConfig()).thenReturn(baseAuthConfig(5, 120, 30));
 
         loginService = new LoginServiceImpl(List.of(authenticator),
-                tenantUserExtensionMapper, loginAuditMapper, redisTemplate,
-                new ObjectMapper().findAndRegisterModules(), nacosConfig, loginAuditExecutor, tenantUserService, preferenceService);
-        var result = loginService.login(command);
-        JsonNode response = new ObjectMapper().valueToTree(result);
-        assertThat(response.size()).isEqualTo(2);
-        assertThat(response.path("sessionToken").textValue()).isNotBlank();
-        assertThat(response.path("tenantId").textValue()).isEqualTo("tenant-1");
-        assertThat(response.has("sessionId")).isFalse();
-        assertThat(response.has("userId")).isFalse();
+                sessionStore, authPolicyPort, loginAuditPort, loginAuditExecutor, tenantUserService, preferenceService);
+        LoginCommand command = new LoginCommand();
+        command.setLoginType(LoginTypeEnum.ACCOUNT_PASSWORD.getValue());
+        command.setDeviceId(DEVICE_ID);
 
-        org.mockito.ArgumentCaptor<String> sessionValue = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(valueOperations).set(org.mockito.ArgumentMatchers.startsWith("ai-base:auth:session:{"),
-                sessionValue.capture(), eq(Duration.ofMinutes(120)));
-        JsonNode session = new ObjectMapper().readTree(sessionValue.getValue());
-        assertThat(session.path("userId").textValue()).isEqualTo(USER_ID);
-        assertThat(session.path("sessionId").textValue()).isNotBlank();
-        assertThat(session.has("clientType")).isFalse();
-        assertThat(session.path("tenantId").textValue()).isEqualTo("tenant-1");
+        var result = loginService.login(command);
+        assertThat(LoginResult.class.getDeclaredFields()).extracting("name")
+                .containsExactly("sessionToken", "tenantId");
+        assertThat(result.getSessionToken()).isNotBlank();
+        assertThat(result.getTenantId()).isEqualTo("tenant-1");
+
+        org.mockito.ArgumentCaptor<SessionRecord> record = org.mockito.ArgumentCaptor.forClass(SessionRecord.class);
+        verify(sessionStore).saveSession(record.capture(), anyString());
+        assertThat(record.getValue().userId()).isEqualTo(USER_ID);
+        assertThat(record.getValue().sessionId()).isNotBlank();
+        assertThat(record.getValue().tenantId()).isEqualTo("tenant-1");
         verify(preferenceService).recordLastUsed(eq(USER_ID), eq("tenant-1"),
-                eq(LocalDateTime.parse(session.path("loginAt").textValue()).truncatedTo(ChronoUnit.MICROS)));
-        assertThat(session.path("ttlMillis").longValue()).isEqualTo(Duration.ofMinutes(120).toMillis());
-        assertThat(session.path("renewWindowMillis").longValue()).isEqualTo(Duration.ofMinutes(30).toMillis());
-        verifyNoInteractions(userMapper);
+                eq(record.getValue().loginAt().truncatedTo(ChronoUnit.MICROS)));
+        assertThat(record.getValue().ttlMillis()).isEqualTo(120 * 60 * 1000L);
+        assertThat(record.getValue().renewWindowMillis()).isEqualTo(30 * 60 * 1000L);
     }
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void loginAuditPropagatesAndClearsTraceContext(boolean insertFails) throws Exception {
-        LoginCommand command = prepareLogin("device-0000000001");
-        when(tenantUserExtensionMapper.selectPersonalTenantId(USER_ID)).thenReturn("tenant-1");
+    void loginAuditPropagatesAndClearsTraceContext(boolean recordFails) throws Exception {
+        LoginCommand command = prepareLogin(DEVICE_ID);
+        when(tenantUserService.findPersonalTenantId(USER_ID)).thenReturn(Optional.of("tenant-1"));
         RequestContext context = RequestContextHolder.current().orElseThrow();
         doAnswer(invocation -> {
             assertThat(RequestContextHolder.current()).contains(context);
             assertThat(MDC.get("traceId")).isEqualTo(context.traceId());
             assertThat(MDC.get("callChain")).isEqualTo(context.callChain());
-            if (insertFails) {
+            if (recordFails) {
                 throw new IllegalStateException("audit insert failed");
             }
-            return 1;
-        }).when(loginAuditMapper).insert(any(LoginAuditEntity.class));
-        org.mockito.ArgumentCaptor<Runnable> task = org.mockito.ArgumentCaptor.forClass(Runnable.class);
+            return null;
+        }).when(loginAuditPort).record(any(LoginAuditEntry.class));
         var executor = Executors.newSingleThreadExecutor();
         try {
             MDC.put("traceId", context.traceId());
             MDC.put("callChain", context.callChain());
             loginService.login(command);
-            verify(loginAuditExecutor).execute(task.capture());
+            assertThat(submittedAuditTasks).hasSize(1);
+            Runnable auditTask = submittedAuditTasks.get(0);
             RequestContextHolder.clear();
             MDC.clear();
             executor.submit(() -> {
-                task.getValue().run();
+                auditTask.run();
                 assertThat(RequestContextHolder.current()).isEmpty();
                 assertThat(MDC.getCopyOfContextMap()).isNullOrEmpty();
             }).get(5, TimeUnit.SECONDS);
-            verify(loginAuditMapper).insert(any(LoginAuditEntity.class));
+            verify(loginAuditPort).record(any(LoginAuditEntry.class));
         } finally {
             executor.shutdownNow();
             MDC.clear();
@@ -246,42 +208,40 @@ class LoginServiceImplTest {
     }
 
     @Test
-    void loginRejectsNewDeviceWhenLimitReached() throws Exception {
+    void loginRejectsNewDeviceWhenLimitReached() {
         LoginAuthenticator authenticator = mock(LoginAuthenticator.class);
         when(authenticator.supports()).thenReturn(LoginTypeEnum.ACCOUNT_PASSWORD);
         AuthenticatedIdentity identity = new AuthenticatedIdentity();
         identity.setUserId(USER_ID);
         identity.setIdentityValue("13800000000");
-        when(authenticator.authenticate(org.mockito.ArgumentMatchers.any(LoginCommand.class))).thenReturn(identity);
-        when(tenantUserExtensionMapper.selectPersonalTenantId(USER_ID)).thenReturn("tenant-1");
-        when(nacosConfig.getDataIdAsObject(NacosDataIdEnum.AI_BASE_AUTH, BaseAuthConfig.class))
-                .thenReturn(baseAuthConfig(1));
-        when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<String>>any(), org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn("DEVICE_LIMIT_EXCEEDED");
+        when(authenticator.authenticate(any(LoginCommand.class))).thenReturn(identity);
+        when(tenantUserService.findPersonalTenantId(USER_ID)).thenReturn(Optional.of("tenant-1"));
+        when(authPolicyPort.authConfig()).thenReturn(baseAuthConfig(1));
+        when(sessionStore.replaceDeviceSlot(anyString(), anyString(), anyString(), any(), anyInt()))
+                .thenReturn(new SessionStore.DeviceSlot(null, true));
 
         LoginCommand command = new LoginCommand();
         command.setLoginType(LoginTypeEnum.ACCOUNT_PASSWORD.getValue());
         command.setDeviceId("device-0000000002");
 
         assertThatThrownBy(() -> new LoginServiceImpl(List.of(authenticator),
-                tenantUserExtensionMapper, loginAuditMapper, redisTemplate, new ObjectMapper(), nacosConfig, loginAuditExecutor, tenantUserService, preferenceService)
+                sessionStore, authPolicyPort, loginAuditPort, loginAuditExecutor, tenantUserService, preferenceService)
                 .login(command))
                 .isInstanceOfSatisfying(BizException.class,
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCodeEnum.DEVICE_LIMIT_EXCEEDED));
-        verify(loginAuditMapper, never()).insert(org.mockito.ArgumentMatchers.<LoginAuditEntity>any());
+        verify(loginAuditPort, never()).record(any());
     }
 
     @Test
     void smsAuthenticationResolvesBoundUserAfterVerifyingCode() {
         SmsCodeService smsCodeService = mock(SmsCodeService.class);
-        UserIdentityMapper identityMapper = mock(UserIdentityMapper.class);
-        UserIdentityEntity binding = new UserIdentityEntity();
-        binding.setUserId(USER_ID);
-        when(identityMapper.selectOne(org.mockito.ArgumentMatchers.<LambdaQueryWrapper<UserIdentityEntity>>any()))
-                .thenReturn(binding);
-        when(userMapper.selectOne(org.mockito.ArgumentMatchers.<LambdaQueryWrapper<UserEntity>>any()))
-                .thenReturn(new UserEntity());
+        UserAccountPort userAccountPort = mock(UserAccountPort.class);
+        when(userAccountPort.findIdentity(IdentityTypeEnum.MOBILE.getValue(),
+                IdentityProviderEnum.SMS.getValue(), "13800000000"))
+                .thenReturn(Optional.of(identity(USER_ID)));
+        when(userAccountPort.findActiveUser(USER_ID)).thenReturn(Optional.of(account(USER_ID)));
 
-        AuthenticatedIdentity identity = new SmsLoginAuthenticatorImpl(smsCodeService, identityMapper, userMapper)
+        AuthenticatedIdentity identity = new SmsLoginAuthenticatorImpl(smsCodeService, userAccountPort)
                 .authenticate(smsCommand());
 
         assertThat(identity.getUserId()).isEqualTo(USER_ID);
@@ -289,145 +249,139 @@ class LoginServiceImplTest {
         assertThat(identity.getIdentityProvider()).isEqualTo(IdentityProviderEnum.SMS.getValue());
         assertThat(identity.getIdentityValue()).isEqualTo("13800000000");
         assertThat(identity.getMobile()).isEqualTo("13800000000");
-        var order = inOrder(smsCodeService, identityMapper, userMapper);
+        var order = inOrder(smsCodeService, userAccountPort);
         order.verify(smsCodeService).consumeLoginCode("13800000000", "123456");
-        order.verify(identityMapper).selectOne(org.mockito.ArgumentMatchers.<LambdaQueryWrapper<UserIdentityEntity>>any());
-        order.verify(userMapper).selectOne(org.mockito.ArgumentMatchers.<LambdaQueryWrapper<UserEntity>>any());
+        order.verify(userAccountPort).findIdentity(IdentityTypeEnum.MOBILE.getValue(),
+                IdentityProviderEnum.SMS.getValue(), "13800000000");
+        order.verify(userAccountPort).findActiveUser(USER_ID);
         order.verifyNoMoreInteractions();
-        assertActiveUserQuery();
     }
 
     @Test
     void smsAuthenticationRejectsUnboundIdentity() {
         SmsCodeService smsCodeService = mock(SmsCodeService.class);
-        UserIdentityMapper identityMapper = mock(UserIdentityMapper.class);
+        UserAccountPort userAccountPort = mock(UserAccountPort.class);
+        when(userAccountPort.findIdentity(anyString(), anyString(), anyString())).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> new SmsLoginAuthenticatorImpl(smsCodeService, identityMapper, userMapper).authenticate(smsCommand()))
+        assertThatThrownBy(() -> new SmsLoginAuthenticatorImpl(smsCodeService, userAccountPort).authenticate(smsCommand()))
                 .isInstanceOfSatisfying(BizException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCodeEnum.LOGIN_FAILED));
 
-        verify(smsCodeService).consumeLoginCode("13800000000", "123456");
-        verify(identityMapper).selectOne(org.mockito.ArgumentMatchers.<LambdaQueryWrapper<UserIdentityEntity>>any());
-        verifyNoInteractions(userMapper);
+        verify(userAccountPort, never()).findActiveUser(anyString());
     }
 
     @Test
     void smsAuthenticationDoesNotResolveUserWhenCodeInvalid() {
         SmsCodeService smsCodeService = mock(SmsCodeService.class);
-        UserIdentityMapper identityMapper = mock(UserIdentityMapper.class);
+        UserAccountPort userAccountPort = mock(UserAccountPort.class);
         doThrow(new BizException(ErrorCodeEnum.SMS_CODE_INVALID))
                 .when(smsCodeService).consumeLoginCode("13800000000", "123456");
 
-        assertThatThrownBy(() -> new SmsLoginAuthenticatorImpl(smsCodeService, identityMapper, userMapper).authenticate(smsCommand()))
+        assertThatThrownBy(() -> new SmsLoginAuthenticatorImpl(smsCodeService, userAccountPort).authenticate(smsCommand()))
                 .isInstanceOfSatisfying(BizException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCodeEnum.SMS_CODE_INVALID));
 
-        verifyNoInteractions(identityMapper, userMapper);
+        verifyNoInteractions(userAccountPort);
     }
 
     @Test
     void smsAuthenticationRejectsUnavailableUser() {
         SmsCodeService smsCodeService = mock(SmsCodeService.class);
-        UserIdentityMapper identityMapper = mock(UserIdentityMapper.class);
-        UserIdentityEntity binding = new UserIdentityEntity();
-        binding.setUserId(USER_ID);
-        when(identityMapper.selectOne(org.mockito.ArgumentMatchers.<LambdaQueryWrapper<UserIdentityEntity>>any()))
-                .thenReturn(binding);
+        UserAccountPort userAccountPort = mock(UserAccountPort.class);
+        when(userAccountPort.findIdentity(anyString(), anyString(), anyString()))
+                .thenReturn(Optional.of(identity(USER_ID)));
+        when(userAccountPort.findActiveUser(USER_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> new SmsLoginAuthenticatorImpl(smsCodeService, identityMapper, userMapper)
+        assertThatThrownBy(() -> new SmsLoginAuthenticatorImpl(smsCodeService, userAccountPort)
                 .authenticate(smsCommand()))
                 .isInstanceOfSatisfying(BizException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCodeEnum.LOGIN_FAILED));
 
-        assertActiveUserQuery();
+        verify(userAccountPort).findActiveUser(USER_ID);
     }
 
     @Test
     void passwordAuthenticationResolvesActiveUserWithSingleUserQuery() {
-        UserIdentityMapper identityMapper = mock(UserIdentityMapper.class);
-        UserIdentityEntity binding = new UserIdentityEntity();
-        binding.setUserId(USER_ID);
-        when(identityMapper.selectOne(org.mockito.ArgumentMatchers.<LambdaQueryWrapper<UserIdentityEntity>>any()))
-                .thenReturn(binding);
-        UserEntity user = new UserEntity();
-        user.setPasswordHash(new BCryptPasswordEncoder().encode("password"));
-        when(userMapper.selectOne(org.mockito.ArgumentMatchers.<LambdaQueryWrapper<UserEntity>>any())).thenReturn(user);
+        UserAccountPort userAccountPort = mock(UserAccountPort.class);
+        when(userAccountPort.findIdentity(IdentityTypeEnum.ACCOUNT.getValue(),
+                IdentityProviderEnum.LOCAL.getValue(), "account"))
+                .thenReturn(Optional.of(identity(USER_ID)));
+        UserAccountBO account = account(USER_ID);
+        account.setPasswordHash(new BCryptPasswordEncoder().encode("password"));
+        when(userAccountPort.findActiveUser(USER_ID)).thenReturn(Optional.of(account));
         LoginCommand command = new LoginCommand();
         command.setAccount("account");
         command.setPassword("password");
 
-        assertThat(new PasswordLoginAuthenticatorImpl(identityMapper, userMapper).authenticate(command).getUserId())
+        assertThat(new PasswordLoginAuthenticatorImpl(userAccountPort).authenticate(command).getUserId())
                 .isEqualTo(USER_ID);
 
-        assertActiveUserQuery();
-        verifyNoMoreInteractions(userMapper);
+        verify(userAccountPort).findIdentity(IdentityTypeEnum.ACCOUNT.getValue(),
+                IdentityProviderEnum.LOCAL.getValue(), "account");
+        verify(userAccountPort).findActiveUser(USER_ID);
+        verifyNoMoreInteractions(userAccountPort);
     }
 
     @Test
     void passwordAuthenticationRejectsUnavailableUser() {
-        UserIdentityMapper identityMapper = mock(UserIdentityMapper.class);
-        UserIdentityEntity binding = new UserIdentityEntity();
-        binding.setUserId(USER_ID);
-        when(identityMapper.selectOne(org.mockito.ArgumentMatchers.<LambdaQueryWrapper<UserIdentityEntity>>any()))
-                .thenReturn(binding);
+        UserAccountPort userAccountPort = mock(UserAccountPort.class);
+        when(userAccountPort.findIdentity(anyString(), anyString(), anyString()))
+                .thenReturn(Optional.of(identity(USER_ID)));
+        when(userAccountPort.findActiveUser(USER_ID)).thenReturn(Optional.empty());
         LoginCommand command = new LoginCommand();
         command.setAccount("account");
         command.setPassword("password");
 
-        assertThatThrownBy(() -> new PasswordLoginAuthenticatorImpl(identityMapper, userMapper).authenticate(command))
+        assertThatThrownBy(() -> new PasswordLoginAuthenticatorImpl(userAccountPort).authenticate(command))
                 .isInstanceOfSatisfying(BizException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCodeEnum.LOGIN_FAILED));
 
-        assertActiveUserQuery();
+        verify(userAccountPort).findActiveUser(USER_ID);
     }
 
     @Test
     void loginPrefersAvailableDefaultOverLastUsed() {
-        LoginCommand command = prepareLogin("device-0000000001");
-        UserTenantPreferenceBO preference = preference("tenant-default", "tenant-last");
-        when(preferenceService.getByUserId(USER_ID)).thenReturn(preference);
-        when(tenantUserExtensionMapper.selectAvailableByUserIdAndTenantId(USER_ID, "tenant-default"))
-                .thenReturn(tenantRow("tenant-default"));
+        LoginCommand command = prepareLogin(DEVICE_ID);
+        when(preferenceService.getByUserId(USER_ID)).thenReturn(preference("tenant-default", "tenant-last"));
+        when(tenantUserService.findAvailable(USER_ID, "tenant-default")).thenReturn(Optional.of(new UserTenantBO()));
 
         assertThat(loginService.login(command).getTenantId()).isEqualTo("tenant-default");
 
         verify(preferenceService).recordLastUsed(eq(USER_ID), eq("tenant-default"), any(LocalDateTime.class));
-        verify(tenantUserExtensionMapper, never()).selectAvailableByUserIdAndTenantId(USER_ID, "tenant-last");
-        verify(tenantUserExtensionMapper, never()).selectPersonalTenantId(USER_ID);
+        verify(tenantUserService, never()).findAvailable(USER_ID, "tenant-last");
+        verify(tenantUserService, never()).findPersonalTenantId(USER_ID);
     }
 
     @Test
     void loginFallsBackFromUnavailableDefaultToLastUsed() {
-        LoginCommand command = prepareLogin("device-0000000001");
+        LoginCommand command = prepareLogin(DEVICE_ID);
         when(preferenceService.getByUserId(USER_ID)).thenReturn(preference("tenant-removed", "tenant-last"));
-        when(tenantUserExtensionMapper.selectAvailableByUserIdAndTenantId(USER_ID, "tenant-last"))
-                .thenReturn(tenantRow("tenant-last"));
+        when(tenantUserService.findAvailable(USER_ID, "tenant-last")).thenReturn(Optional.of(new UserTenantBO()));
 
         assertThat(loginService.login(command).getTenantId()).isEqualTo("tenant-last");
 
         verify(preferenceService).recordLastUsed(eq(USER_ID), eq("tenant-last"), any(LocalDateTime.class));
-        verify(tenantUserExtensionMapper, never()).selectPersonalTenantId(USER_ID);
+        verify(tenantUserService, never()).findPersonalTenantId(USER_ID);
     }
 
     @Test
     void loginUsesLastUsedWhenDefaultUnset() {
-        LoginCommand command = prepareLogin("device-0000000001");
+        LoginCommand command = prepareLogin(DEVICE_ID);
         when(preferenceService.getByUserId(USER_ID)).thenReturn(preference(null, "tenant-last"));
-        when(tenantUserExtensionMapper.selectAvailableByUserIdAndTenantId(USER_ID, "tenant-last"))
-                .thenReturn(tenantRow("tenant-last"));
+        when(tenantUserService.findAvailable(USER_ID, "tenant-last")).thenReturn(Optional.of(new UserTenantBO()));
 
         assertThat(loginService.login(command).getTenantId()).isEqualTo("tenant-last");
 
-        verify(tenantUserExtensionMapper).selectAvailableByUserIdAndTenantId(USER_ID, "tenant-last");
-        verify(tenantUserExtensionMapper, never()).selectAvailableByUserIdAndTenantId(eq(USER_ID), isNull());
-        verify(tenantUserExtensionMapper, never()).selectPersonalTenantId(USER_ID);
+        verify(tenantUserService).findAvailable(USER_ID, "tenant-last");
+        verify(tenantUserService, never()).findAvailable(USER_ID, null);
+        verify(tenantUserService, never()).findPersonalTenantId(USER_ID);
     }
 
     @Test
     void loginFallsBackToPersonalWhenBothPreferencesUnavailable() {
-        LoginCommand command = prepareLogin("device-0000000001");
+        LoginCommand command = prepareLogin(DEVICE_ID);
         when(preferenceService.getByUserId(USER_ID)).thenReturn(preference("tenant-removed", "tenant-disabled"));
-        when(tenantUserExtensionMapper.selectPersonalTenantId(USER_ID)).thenReturn("tenant-personal");
+        when(tenantUserService.findPersonalTenantId(USER_ID)).thenReturn(Optional.of("tenant-personal"));
 
         assertThat(loginService.login(command).getTenantId()).isEqualTo("tenant-personal");
 
@@ -436,31 +390,31 @@ class LoginServiceImplTest {
 
     @Test
     void loginSkipsUnsetPreferenceFields() {
-        LoginCommand command = prepareLogin("device-0000000001");
+        LoginCommand command = prepareLogin(DEVICE_ID);
         when(preferenceService.getByUserId(USER_ID)).thenReturn(preference(null, null));
-        when(tenantUserExtensionMapper.selectPersonalTenantId(USER_ID)).thenReturn("tenant-personal");
+        when(tenantUserService.findPersonalTenantId(USER_ID)).thenReturn(Optional.of("tenant-personal"));
 
         assertThat(loginService.login(command).getTenantId()).isEqualTo("tenant-personal");
 
-        verify(tenantUserExtensionMapper, never()).selectAvailableByUserIdAndTenantId(anyString(), any());
+        verify(tenantUserService, never()).findAvailable(anyString(), any());
     }
 
     @Test
     void loginRejectsWhenNoAvailableSpaceAndDoesNotCreateSession() {
-        LoginCommand command = prepareLogin("device-0000000001");
+        LoginCommand command = prepareLogin(DEVICE_ID);
 
         assertThatThrownBy(() -> loginService.login(command))
                 .isInstanceOfSatisfying(BizException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCodeEnum.PERSONAL_TENANT_NOT_FOUND));
 
-        verifyNoInteractions(valueOperations);
+        verifyNoInteractions(sessionStore);
         verify(preferenceService, never()).recordLastUsed(anyString(), anyString(), any(LocalDateTime.class));
     }
 
     @Test
     void loginCreatesIndependentTokensForDifferentDevices() {
-        LoginCommand first = prepareLogin("device-0000000001");
-        when(tenantUserExtensionMapper.selectPersonalTenantId(USER_ID)).thenReturn("tenant-1");
+        LoginCommand first = prepareLogin(DEVICE_ID);
+        when(tenantUserService.findPersonalTenantId(USER_ID)).thenReturn(Optional.of("tenant-1"));
         LoginCommand second = new LoginCommand();
         second.setLoginType(first.getLoginType());
         second.setDeviceId("device-0000000002");
@@ -469,40 +423,35 @@ class LoginServiceImplTest {
         var computer = loginService.login(second);
 
         assertThat(phone.getSessionToken()).isNotEqualTo(computer.getSessionToken());
-        var sessionKeys = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(valueOperations, times(4)).set(sessionKeys.capture(), anyString(), any(Duration.class));
-        assertThat(sessionKeys.getAllValues()).doesNotHaveDuplicates();
-        verify(valueOperations, times(2)).set(startsWith("ai-base:auth:session:{"), anyString(), any(Duration.class));
-        verify(redisTemplate, never()).delete(anyString());
+        org.mockito.ArgumentCaptor<String> tokenHashes = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(sessionStore, times(2)).saveSession(any(SessionRecord.class), tokenHashes.capture());
+        assertThat(tokenHashes.getAllValues()).doesNotHaveDuplicates();
+        verify(sessionStore, never()).deleteSession(anyString(), anyString());
     }
 
     @Test
     void switchUpdatesOnlyCurrentSessionAndRecordsLastUsed() {
-        UserTenantBO tenant = prepareSwitch(1L);
+        UserTenantBO tenant = prepareSwitch(SessionStore.TenantSwitchResult.OK);
 
         assertThat(loginService.switchTenant("tenant-2")).isSameAs(tenant);
 
-        verify(redisTemplate).execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(),
-                eq(List.of("ai-base:auth:session:{" + TOKEN_HASH + "}")),
-                eq(USER_ID), eq(SESSION_ID), eq("tenant-1"), eq("tenant-2"));
+        verify(sessionStore).switchTenant(TOKEN_HASH, USER_ID, SESSION_ID, "tenant-1", "tenant-2");
         verify(preferenceService).recordLastUsed(eq(USER_ID), eq("tenant-2"), any(LocalDateTime.class));
-        verify(redisTemplate, never()).delete(anyString());
-        verifyNoInteractions(hashOperations);
-        verify(valueOperations, never()).set(anyString(), anyString(), any(Duration.class));
+        verify(sessionStore, never()).deleteSession(anyString(), anyString());
+        verify(sessionStore, never()).saveSession(any(SessionRecord.class), anyString());
     }
 
     @Test
-    void switchRecordsTimeCapturedBeforeRedisUpdateRatherThanPersistenceTime() {
-        prepareSwitch(1L);
+    void switchRecordsTimeCapturedBeforeStoreUpdateRatherThanPersistenceTime() {
+        prepareSwitch(SessionStore.TenantSwitchResult.OK);
         LocalDateTime switchTime = LocalDateTime.of(2026, 10, 27, 10, 0, 0, 123456789);
         LocalDateTime delayedTime = switchTime.plusSeconds(5);
         try (var time = mockStatic(LocalDateTime.class, CALLS_REAL_METHODS)) {
             time.when(LocalDateTime::now).thenReturn(switchTime, delayedTime);
-            when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(),
-                    anyList(), eq(USER_ID), eq(SESSION_ID), eq("tenant-1"), eq("tenant-2")))
+            when(sessionStore.switchTenant(TOKEN_HASH, USER_ID, SESSION_ID, "tenant-1", "tenant-2"))
                     .thenAnswer(invocation -> {
                         assertThat(LocalDateTime.now()).isEqualTo(delayedTime);
-                        return 1L;
+                        return SessionStore.TenantSwitchResult.OK;
                     });
 
             loginService.switchTenant("tenant-2");
@@ -520,7 +469,7 @@ class LoginServiceImplTest {
                 .isInstanceOfSatisfying(BizException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCodeEnum.TENANT_UNAVAILABLE));
 
-        verifyNoInteractions(valueOperations, preferenceService);
+        verifyNoInteractions(sessionStore, preferenceService);
     }
 
     @Test
@@ -536,7 +485,7 @@ class LoginServiceImplTest {
 
     @Test
     void switchRejectsExpiredOrLoggedOutSession() {
-        prepareSwitch(0L);
+        prepareSwitch(SessionStore.TenantSwitchResult.SESSION_INVALID);
 
         assertThatThrownBy(() -> loginService.switchTenant("tenant-2"))
                 .isInstanceOfSatisfying(BizException.class,
@@ -547,7 +496,7 @@ class LoginServiceImplTest {
 
     @Test
     void switchRejectsConcurrentTenantChange() {
-        prepareSwitch(-1L);
+        prepareSwitch(SessionStore.TenantSwitchResult.TENANT_MISMATCH);
 
         assertThatThrownBy(() -> loginService.switchTenant("tenant-2"))
                 .isInstanceOfSatisfying(BizException.class,
@@ -563,15 +512,20 @@ class LoginServiceImplTest {
                     .isInstanceOfSatisfying(BizException.class,
                             e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCodeEnum.PARAMETER_REQUIRED));
         }
-        verifyNoInteractions(tenantUserService, valueOperations, preferenceService);
+        verifyNoInteractions(tenantUserService, sessionStore, preferenceService);
     }
 
-    private void assertActiveUserQuery() {
-        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), UserEntity.class);
-        org.mockito.ArgumentCaptor<LambdaQueryWrapper<UserEntity>> query = org.mockito.ArgumentCaptor.captor();
-        verify(userMapper).selectOne(query.capture());
-        assertThat(query.getValue().getSqlSegment()).contains("user_id =", "status =");
-        assertThat(query.getValue().getParamNameValuePairs()).containsValue(USER_ID).containsValue(1);
+    private void stubSession(String sessionId, String tokenHash, SessionRecord record) {
+        if (tokenHash == null) {
+            when(sessionStore.findTokenHash(sessionId)).thenReturn(Optional.empty());
+            return;
+        }
+        when(sessionStore.findTokenHash(sessionId)).thenReturn(Optional.of(tokenHash));
+        if (record == null) {
+            when(sessionStore.findSession(tokenHash)).thenReturn(Optional.empty());
+        } else {
+            when(sessionStore.findSession(tokenHash)).thenReturn(Optional.of(record));
+        }
     }
 
     private LoginCommand smsCommand() {
@@ -589,8 +543,7 @@ class LoginServiceImplTest {
         identity.setIdentityValue("13800000000");
         when(authenticator.authenticate(any(LoginCommand.class))).thenReturn(identity);
         loginService = new LoginServiceImpl(List.of(authenticator),
-                tenantUserExtensionMapper, loginAuditMapper, redisTemplate,
-                new ObjectMapper().findAndRegisterModules(), nacosConfig, loginAuditExecutor, tenantUserService, preferenceService);
+                sessionStore, authPolicyPort, loginAuditPort, loginAuditExecutor, tenantUserService, preferenceService);
         LoginCommand command = new LoginCommand();
         command.setLoginType(LoginTypeEnum.ACCOUNT_PASSWORD.getValue());
         command.setDeviceId(deviceId);
@@ -604,20 +557,29 @@ class LoginServiceImplTest {
         return result;
     }
 
-    private UserTenantRow tenantRow(String tenantId) {
-        UserTenantRow result = new UserTenantRow();
-        result.setTenantId(tenantId);
+    private UserIdentityBO identity(String userId) {
+        UserIdentityBO result = new UserIdentityBO();
+        result.setUserId(userId);
         return result;
     }
 
-    private UserTenantBO prepareSwitch(long result) {
+    private UserAccountBO account(String userId) {
+        UserAccountBO result = new UserAccountBO();
+        result.setUserId(userId);
+        return result;
+    }
+
+    private SessionRecord record(String userId, String sessionId, String loginIp) {
+        return new SessionRecord(sessionId, userId, "tenant-1", DEVICE_ID, loginIp, "JUnit",
+                LocalDateTime.of(2026, 9, 22, 12, 0), 4 * 60 * 60 * 1000L, 10 * 60 * 1000L);
+    }
+
+    private UserTenantBO prepareSwitch(SessionStore.TenantSwitchResult result) {
         UserTenantBO tenant = new UserTenantBO();
         tenant.setTenantId("tenant-2");
         when(tenantUserService.requireAvailable(USER_ID, "tenant-2")).thenReturn(tenant);
-        when(valueOperations.get("ai-base:auth:session-id:{" + SESSION_ID + "}"))
-                .thenReturn(TOKEN_HASH);
-        when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(),
-                anyList(), eq(USER_ID), eq(SESSION_ID), eq("tenant-1"), eq("tenant-2")))
+        when(sessionStore.findTokenHash(SESSION_ID)).thenReturn(Optional.of(TOKEN_HASH));
+        when(sessionStore.switchTenant(TOKEN_HASH, USER_ID, SESSION_ID, "tenant-1", "tenant-2"))
                 .thenReturn(result);
         return tenant;
     }
@@ -635,20 +597,4 @@ class LoginServiceImplTest {
         config.setSession(sessionConfig);
         return config;
     }
-
-    private String sessionJson(String userId, String sessionId, String loginIp) throws Exception {
-        SessionInfo session = new SessionInfo();
-        session.setSessionId(sessionId);
-        session.setLoginIp(loginIp);
-        session.setUserAgent("JUnit");
-        return new ObjectMapper().writeValueAsString(Map.of(
-                "sessionId", session.getSessionId(),
-                "userId", userId,
-                "tenantId", "tenant-1",
-                "deviceId", "device-0000000001",
-                "loginIp", session.getLoginIp(),
-                "userAgent", session.getUserAgent(),
-                "loginAt", "2026-09-22T12:00:00"));
-    }
 }
-

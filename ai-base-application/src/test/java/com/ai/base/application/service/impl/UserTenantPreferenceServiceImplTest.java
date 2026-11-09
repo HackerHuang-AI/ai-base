@@ -5,32 +5,40 @@ import com.ai.base.application.common.BizException;
 import com.ai.base.application.enums.ErrorCodeEnum;
 import com.ai.base.application.model.request.RequestContext;
 import com.ai.base.application.model.request.RequestContextHolder;
+import com.ai.base.application.port.UserPreferencePort;
 import com.ai.base.application.service.TenantUserService;
-import com.ai.base.infrastructure.persistence.entity.UserTenantPreferenceEntity;
-import com.ai.base.infrastructure.persistence.mapper.UserTenantPreferenceMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.dao.DuplicateKeyException;
+import org.mockito.Mockito;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 class UserTenantPreferenceServiceImplTest {
     private static final String USER_ID = "user-1";
     private static final LocalDateTime USED_AT = LocalDateTime.of(2026, 10, 27, 10, 0, 0, 123456000);
-    private UserTenantPreferenceMapper mapper;
+    private UserPreferencePort preferencePort;
     private TenantUserService tenantUserService;
     private UserTenantPreferenceServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        mapper = mock(UserTenantPreferenceMapper.class);
+        preferencePort = mock(UserPreferencePort.class);
         tenantUserService = mock(TenantUserService.class);
-        service = new UserTenantPreferenceServiceImpl(mapper, tenantUserService);
+        service = new UserTenantPreferenceServiceImpl(preferencePort, tenantUserService);
         RequestContextHolder.set(new RequestContext("trace-1", "traceparent", USER_ID, "tenant-1", "session-1", "ai-base"));
     }
 
@@ -41,57 +49,55 @@ class UserTenantPreferenceServiceImplTest {
 
     @Test
     void getByUserIdWithoutRecordReturnsNullAndDoesNotWrite() {
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenReturn(Optional.empty());
+
         assertThat(service.getByUserId(USER_ID)).isNull();
-        verify(mapper).selectOne(any());
-        verifyNoMoreInteractions(mapper);
+        verify(preferencePort).findByUserId(USER_ID);
+        verifyNoMoreInteractions(preferencePort);
         verifyNoInteractions(tenantUserService);
     }
 
     @Test
     void getCurrentReturnsOnlyBusinessFields() {
-        UserTenantPreferenceEntity entity = preference();
-        entity.setId(123L);
-        entity.setVersion(5);
-        entity.setValid(1);
-        when(mapper.selectOne(any())).thenReturn(entity);
+        assertThat(UserTenantPreferenceBO.class.getDeclaredFields()).extracting("name")
+                .containsExactly("userId", "defaultTenantId", "lastUsedTenantId");
+
+        UserTenantPreferenceBO preference = preference();
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenReturn(Optional.of(preference));
 
         UserTenantPreferenceBO result = service.getCurrent();
 
         assertThat(result.getUserId()).isEqualTo(USER_ID);
         assertThat(result.getDefaultTenantId()).isEqualTo("default-old");
         assertThat(result.getLastUsedTenantId()).isEqualTo("last-old");
-        assertThat(UserTenantPreferenceBO.class.getDeclaredFields()).extracting("name")
-                .containsExactly("userId", "defaultTenantId", "lastUsedTenantId");
-        verify(mapper).selectOne(any());
-        verifyNoMoreInteractions(mapper);
+        verify(preferencePort).findByUserId(USER_ID);
+        verifyNoMoreInteractions(preferencePort);
     }
 
     @Test
     void defaultUpdateRequiresAdmissionAndUpdatesOnlyDefaultField() {
-        UserTenantPreferenceEntity entity = preference();
-        when(mapper.selectOne(any())).thenReturn(entity);
-        when(mapper.updateDefaultTenantId(USER_ID, "default-new")).thenReturn(1);
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenReturn(Optional.of(preference()));
+        Mockito.when(preferencePort.updateDefaultTenantId(USER_ID, "default-new")).thenReturn(true);
 
         service.updateCurrentDefault("default-new");
 
-        var order = inOrder(tenantUserService, mapper);
+        var order = inOrder(tenantUserService, preferencePort);
         order.verify(tenantUserService).requireAvailable(USER_ID, "default-new");
-        order.verify(mapper).selectOne(any());
-        order.verify(mapper).updateDefaultTenantId(USER_ID, "default-new");
-        verifyNoMoreInteractions(mapper, tenantUserService);
-        assertThat(entity.getLastUsedTenantId()).isEqualTo("last-old");
-        assertThat(entity.getLastUsedAt()).isEqualTo(USED_AT.minusSeconds(1));
-        assertThat(entity.getDefaultTenantId()).isEqualTo("default-old");
+        order.verify(preferencePort).findByUserId(USER_ID);
+        order.verify(preferencePort).updateDefaultTenantId(USER_ID, "default-new");
+        verifyNoMoreInteractions(preferencePort, tenantUserService);
+        verify(preferencePort, never()).updateLastUsed(anyString(), anyString(), Mockito.any(LocalDateTime.class));
+        verify(preferencePort, never()).insertPreference(anyString(), anyString(), anyString(), Mockito.any(LocalDateTime.class));
     }
 
     @Test
     void nullDefaultClearsWithoutAdmission() {
-        when(mapper.selectOne(any())).thenReturn(preference());
-        when(mapper.updateDefaultTenantId(USER_ID, null)).thenReturn(1);
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenReturn(Optional.of(preference()));
+        Mockito.when(preferencePort.updateDefaultTenantId(USER_ID, null)).thenReturn(true);
 
         service.updateCurrentDefault(null);
 
-        verify(mapper).updateDefaultTenantId(USER_ID, null);
+        verify(preferencePort).updateDefaultTenantId(USER_ID, null);
         verifyNoInteractions(tenantUserService);
     }
 
@@ -102,59 +108,57 @@ class UserTenantPreferenceServiceImplTest {
                     .isInstanceOfSatisfying(BizException.class, e ->
                             assertThat(e.getErrorCode()).isEqualTo(ErrorCodeEnum.PARAMETER_FORMAT_INVALID));
         }
-        verifyNoInteractions(mapper, tenantUserService);
+        verifyNoInteractions(preferencePort, tenantUserService);
     }
 
     @Test
     void admissionFailureDoesNotWrite() {
         BizException failure = new BizException(ErrorCodeEnum.PARAMETER_VALUE_INVALID);
-        when(tenantUserService.requireAvailable(USER_ID, "unavailable")).thenThrow(failure);
+        Mockito.when(tenantUserService.requireAvailable(USER_ID, "unavailable")).thenThrow(failure);
 
         assertThatThrownBy(() -> service.updateCurrentDefault("unavailable")).isSameAs(failure);
 
-        verifyNoInteractions(mapper);
+        verifyNoInteractions(preferencePort);
     }
 
     @Test
     void firstDefaultWriteInsertsOnlyRequiredBusinessFields() {
-        when(mapper.insert(any(UserTenantPreferenceEntity.class))).thenReturn(1);
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenReturn(Optional.empty());
+        Mockito.when(preferencePort.insertPreference(USER_ID, "default-new", null, null)).thenReturn(true);
 
         service.updateCurrentDefault("default-new");
 
-        ArgumentCaptor<UserTenantPreferenceEntity> captor = ArgumentCaptor.forClass(UserTenantPreferenceEntity.class);
-        verify(mapper).insert(captor.capture());
-        assertThat(captor.getValue().getUserId()).isEqualTo(USER_ID);
-        assertThat(captor.getValue().getDefaultTenantId()).isEqualTo("default-new");
-        assertThat(captor.getValue().getLastUsedTenantId()).isNull();
-        assertThat(captor.getValue().getLastUsedAt()).isNull();
-        verify(mapper, never()).updateDefaultTenantId(anyString(), any());
+        verify(preferencePort).insertPreference(USER_ID, "default-new", null, null);
+        verify(preferencePort, never()).updateDefaultTenantId(anyString(), anyString());
+        verify(tenantUserService).requireAvailable(USER_ID, "default-new");
     }
 
     @Test
     void firstNullDefaultWriteInsertsEmptyPreference() {
-        when(mapper.insert(any(UserTenantPreferenceEntity.class))).thenReturn(1);
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenReturn(Optional.empty());
+        Mockito.when(preferencePort.insertPreference(USER_ID, null, null, null)).thenReturn(true);
 
         service.updateCurrentDefault(null);
 
-        verify(mapper).insert(org.mockito.ArgumentMatchers.<UserTenantPreferenceEntity>argThat(entity -> USER_ID.equals(entity.getUserId())
-                && entity.getDefaultTenantId() == null && entity.getLastUsedTenantId() == null));
+        verify(preferencePort).insertPreference(USER_ID, null, null, null);
         verifyNoInteractions(tenantUserService);
     }
 
     @Test
     void concurrentFirstDefaultInsertFallsBackToSingleFieldUpdate() {
-        when(mapper.insert(any(UserTenantPreferenceEntity.class))).thenThrow(new DuplicateKeyException("user_id"));
-        when(mapper.updateDefaultTenantId(USER_ID, "default-new")).thenReturn(1);
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenReturn(Optional.empty());
+        Mockito.when(preferencePort.insertPreference(USER_ID, "default-new", null, null)).thenReturn(false);
+        Mockito.when(preferencePort.updateDefaultTenantId(USER_ID, "default-new")).thenReturn(true);
 
         service.updateCurrentDefault("default-new");
 
-        verify(mapper).updateDefaultTenantId(USER_ID, "default-new");
-        verify(mapper, never()).updateLastUsedTenantId(anyString(), any(), any(LocalDateTime.class));
+        verify(preferencePort).updateDefaultTenantId(USER_ID, "default-new");
+        verify(preferencePort, never()).updateLastUsed(anyString(), anyString(), Mockito.any(LocalDateTime.class));
     }
 
     @Test
     void defaultUpdateWithZeroAffectedRowsThrowsConflict() {
-        when(mapper.selectOne(any())).thenReturn(preference());
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenReturn(Optional.of(preference()));
 
         assertThatThrownBy(() -> service.updateCurrentDefault(null))
                 .isInstanceOfSatisfying(BizException.class, e ->
@@ -164,97 +168,88 @@ class UserTenantPreferenceServiceImplTest {
     @Test
     void defaultPersistenceFailurePropagates() {
         IllegalStateException failure = new IllegalStateException("database unavailable");
-        when(mapper.insert(any(UserTenantPreferenceEntity.class))).thenThrow(failure);
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenReturn(Optional.empty());
+        Mockito.when(preferencePort.insertPreference(USER_ID, null, null, null)).thenThrow(failure);
 
         assertThatThrownBy(() -> service.updateCurrentDefault(null)).isSameAs(failure);
     }
 
     @Test
     void lastUsedUpdateChangesOnlyLastUsedFieldForExplicitUser() {
-        UserTenantPreferenceEntity entity = preference();
-        when(mapper.selectOne(any())).thenReturn(entity);
-        when(mapper.updateLastUsedTenantId("user-2", "last-new", USED_AT)).thenReturn(1);
+        Mockito.when(preferencePort.findByUserId("user-2")).thenReturn(Optional.of(preference()));
+        Mockito.when(preferencePort.updateLastUsed("user-2", "last-new", USED_AT)).thenReturn(true);
 
         service.recordLastUsed("user-2", "last-new", USED_AT);
 
-        verify(mapper).updateLastUsedTenantId("user-2", "last-new", USED_AT);
-        verify(mapper, never()).insert(any(UserTenantPreferenceEntity.class));
-        verify(mapper, never()).updateDefaultTenantId(anyString(), any());
-        assertThat(entity.getDefaultTenantId()).isEqualTo("default-old");
+        verify(preferencePort).updateLastUsed("user-2", "last-new", USED_AT);
+        verify(preferencePort, never()).insertPreference(anyString(), anyString(), anyString(), Mockito.any(LocalDateTime.class));
+        verify(preferencePort, never()).updateDefaultTenantId(anyString(), anyString());
         verifyNoInteractions(tenantUserService);
     }
 
     @Test
     void firstLastUsedWriteInsertsOnlyRequiredBusinessFields() {
-        when(mapper.insert(any(UserTenantPreferenceEntity.class))).thenReturn(1);
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenReturn(Optional.empty());
+        Mockito.when(preferencePort.insertPreference(USER_ID, null, "last-new", USED_AT)).thenReturn(true);
 
         service.recordLastUsed(USER_ID, "last-new", USED_AT);
 
-        verify(mapper).insert(org.mockito.ArgumentMatchers.<UserTenantPreferenceEntity>argThat(entity -> USER_ID.equals(entity.getUserId())
-                && "last-new".equals(entity.getLastUsedTenantId()) && entity.getDefaultTenantId() == null
-                && USED_AT.equals(entity.getLastUsedAt())));
-        verify(mapper, never()).updateLastUsedTenantId(anyString(), any(), any(LocalDateTime.class));
+        verify(preferencePort).insertPreference(USER_ID, null, "last-new", USED_AT);
+        verify(preferencePort, never()).updateLastUsed(anyString(), anyString(), Mockito.any(LocalDateTime.class));
+        verifyNoInteractions(tenantUserService);
     }
 
     @Test
     void concurrentFirstLastUsedInsertFallsBackToSingleFieldUpdate() {
-        when(mapper.insert(any(UserTenantPreferenceEntity.class))).thenThrow(new DuplicateKeyException("user_id"));
-        when(mapper.updateLastUsedTenantId(USER_ID, "last-new", USED_AT)).thenReturn(1);
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenReturn(Optional.empty());
+        Mockito.when(preferencePort.insertPreference(USER_ID, null, "last-new", USED_AT)).thenReturn(false);
+        Mockito.when(preferencePort.updateLastUsed(USER_ID, "last-new", USED_AT)).thenReturn(true);
 
         service.recordLastUsed(USER_ID, "last-new", USED_AT);
 
-        verify(mapper).updateLastUsedTenantId(USER_ID, "last-new", USED_AT);
-        verify(mapper, never()).updateDefaultTenantId(anyString(), any());
+        verify(preferencePort).updateLastUsed(USER_ID, "last-new", USED_AT);
+        verify(preferencePort, never()).updateDefaultTenantId(anyString(), anyString());
     }
 
     @Test
     void lastUsedReadFailureDoesNotPropagate() {
-        when(mapper.selectOne(any())).thenThrow(new IllegalStateException("database unavailable"));
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenThrow(new IllegalStateException("database unavailable"));
         assertThatCode(() -> service.recordLastUsed(USER_ID, "last-new", USED_AT)).doesNotThrowAnyException();
     }
 
     @Test
     void lastUsedInsertFailureDoesNotPropagate() {
-        when(mapper.insert(any(UserTenantPreferenceEntity.class))).thenThrow(new IllegalStateException("database unavailable"));
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenReturn(Optional.empty());
+        Mockito.when(preferencePort.insertPreference(USER_ID, null, "last-new", USED_AT))
+                .thenThrow(new IllegalStateException("database unavailable"));
         assertThatCode(() -> service.recordLastUsed(USER_ID, "last-new", USED_AT)).doesNotThrowAnyException();
     }
 
     @Test
     void lastUsedUpdateFailureDoesNotPropagate() {
-        when(mapper.selectOne(any())).thenReturn(preference());
-        when(mapper.updateLastUsedTenantId(USER_ID, "last-new", USED_AT)).thenThrow(new IllegalStateException("database unavailable"));
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenReturn(Optional.of(preference()));
+        Mockito.when(preferencePort.updateLastUsed(USER_ID, "last-new", USED_AT))
+                .thenThrow(new IllegalStateException("database unavailable"));
         assertThatCode(() -> service.recordLastUsed(USER_ID, "last-new", USED_AT)).doesNotThrowAnyException();
     }
 
     @Test
-    void olderAndEqualLastUsedEventsAreIgnoredWithoutFallbackWrites() {
-        when(mapper.selectOne(any())).thenReturn(preference());
-        for (LocalDateTime usedAt : new LocalDateTime[]{USED_AT.minusSeconds(2), USED_AT.minusSeconds(1)}) {
-            assertThatCode(() -> service.recordLastUsed(USER_ID, "last-new", usedAt)).doesNotThrowAnyException();
-            verify(mapper).updateLastUsedTenantId(USER_ID, "last-new", usedAt);
-        }
-        verify(mapper, never()).insert(any(UserTenantPreferenceEntity.class));
-        verify(mapper, never()).updateDefaultTenantId(anyString(), any());
-        verify(mapper, never()).update(any(), any());
-    }
-
-    @Test
-    void concurrentFirstLastUsedInsertWithOlderEventIsIgnored() {
-        when(mapper.insert(any(UserTenantPreferenceEntity.class))).thenThrow(new DuplicateKeyException("user_id"));
+    void lastUsedForExistingPreferenceUpdateFailureDoesNotPropagate() {
+        // findByUserId 抛错场景已由 lastUsedReadFailureDoesNotPropagate 覆盖，
+        // 此处覆盖记录已存在但 updateLastUsed 抛错的容错路径
+        Mockito.when(preferencePort.findByUserId(USER_ID)).thenReturn(Optional.of(preference()));
+        IllegalStateException failure = new IllegalStateException("database unavailable");
+        Mockito.when(preferencePort.updateLastUsed(USER_ID, "last-new", USED_AT)).thenThrow(failure);
 
         assertThatCode(() -> service.recordLastUsed(USER_ID, "last-new", USED_AT)).doesNotThrowAnyException();
-
-        verify(mapper).updateLastUsedTenantId(USER_ID, "last-new", USED_AT);
-        verify(mapper, never()).updateDefaultTenantId(anyString(), any());
+        verify(preferencePort, never()).insertPreference(anyString(), anyString(), anyString(), Mockito.any(LocalDateTime.class));
     }
 
-    private UserTenantPreferenceEntity preference() {
-        UserTenantPreferenceEntity entity = new UserTenantPreferenceEntity();
-        entity.setUserId(USER_ID);
-        entity.setDefaultTenantId("default-old");
-        entity.setLastUsedTenantId("last-old");
-        entity.setLastUsedAt(USED_AT.minusSeconds(1));
-        return entity;
+    private UserTenantPreferenceBO preference() {
+        UserTenantPreferenceBO preference = new UserTenantPreferenceBO();
+        preference.setUserId(USER_ID);
+        preference.setDefaultTenantId("default-old");
+        preference.setLastUsedTenantId("last-old");
+        return preference;
     }
 }
-

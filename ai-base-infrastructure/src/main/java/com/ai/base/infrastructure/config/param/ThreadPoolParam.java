@@ -1,4 +1,4 @@
-package com.ai.base.application.config.param;
+package com.ai.base.infrastructure.config.param;
 
 import lombok.Getter;
 import lombok.Setter;

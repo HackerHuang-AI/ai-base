@@ -2,9 +2,9 @@ package com.ai.base.application.service.impl;
 
 import com.ai.base.application.common.BizException;
 import com.ai.base.application.enums.ErrorCodeEnum;
+import com.ai.base.application.port.SmsCodeStore;
 import com.ai.base.application.service.SmsCodeService;
 import com.ai.base.application.service.SmsSender;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -20,12 +20,12 @@ public class SmsCodeServiceImpl implements SmsCodeService {
     private static final Duration CODE_TTL = Duration.ofMinutes(5);
     private static final Duration SEND_LIMIT_TTL = Duration.ofSeconds(60);
 
-    private final StringRedisTemplate stringRedisTemplate;
+    private final SmsCodeStore smsCodeStore;
     private final SmsSender smsSender;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public SmsCodeServiceImpl(StringRedisTemplate stringRedisTemplate, SmsSender smsSender) {
-        this.stringRedisTemplate = stringRedisTemplate;
+    public SmsCodeServiceImpl(SmsCodeStore smsCodeStore, SmsSender smsSender) {
+        this.smsCodeStore = smsCodeStore;
         this.smsSender = smsSender;
     }
 
@@ -33,18 +33,15 @@ public class SmsCodeServiceImpl implements SmsCodeService {
     public void sendLoginCode(String mobile) {
         validateMobile(mobile);
         String mobileHash = sha256(mobile);
-        String codeKey = "ai-base:auth:sms-code:" + mobileHash;
-        String limitKey = "ai-base:auth:sms-limit:" + mobileHash;
-        if (!Boolean.TRUE.equals(stringRedisTemplate.opsForValue().setIfAbsent(limitKey, "1", SEND_LIMIT_TTL))) {
+        if (!smsCodeStore.tryAcquireSendLimit(mobileHash, SEND_LIMIT_TTL)) {
             throw new BizException(ErrorCodeEnum.SMS_CODE_SEND_TOO_FREQUENT);
         }
         String code = String.format("%06d", secureRandom.nextInt(1_000_000));
-        stringRedisTemplate.opsForValue().set(codeKey, code, CODE_TTL);
+        smsCodeStore.saveCode(mobileHash, code, CODE_TTL);
         try {
             smsSender.sendLoginCode(mobile, code);
         } catch (RuntimeException exception) {
-            stringRedisTemplate.delete(codeKey);
-            stringRedisTemplate.delete(limitKey);
+            smsCodeStore.deleteCodeAndLimit(mobileHash);
             throw exception;
         }
     }
@@ -52,7 +49,7 @@ public class SmsCodeServiceImpl implements SmsCodeService {
     @Override
     public void consumeLoginCode(String mobile, String smsCode) {
         validateMobile(mobile);
-        String code = stringRedisTemplate.opsForValue().getAndDelete("ai-base:auth:sms-code:" + sha256(mobile));
+        String code = smsCodeStore.consumeCode(sha256(mobile));
         if (!StringUtils.hasText(smsCode) || !smsCode.equals(code)) {
             throw new BizException(ErrorCodeEnum.SMS_CODE_INVALID);
         }
@@ -73,4 +70,3 @@ public class SmsCodeServiceImpl implements SmsCodeService {
         }
     }
 }
-

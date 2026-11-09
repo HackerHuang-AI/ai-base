@@ -9,8 +9,13 @@
     </parent>
     <artifactId>ai-base-infrastructure</artifactId>
     <name>ai-base-infrastructure</name>
-    <description>基础设施层：Nacos、HTTP、重试</description>
+    <description>基础设施层：持久化、Redis、Nacos、HTTP、重试，实现 application 定义端口</description>
     <dependencies>
+        <!-- 依赖倒置：实现 application 声明的端口（SessionStore/各 Repository） -->
+        <dependency>
+            <groupId>com.ai.base</groupId>
+            <artifactId>ai-base-application</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
@@ -45,6 +50,12 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
+        </dependency>
+        <!-- 测试：mapper SQL 断言（MapperSqlTest） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

@@ -1,4 +1,4 @@
-package com.ai.base.starter.common;
+package com.ai.base.infrastructure.persistence;
 
 import com.ai.base.infrastructure.persistence.entity.UserEntity;
 import com.ai.base.infrastructure.persistence.entity.UserInfoEntity;
@@ -15,7 +15,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class TenantMapperSqlTest {
+class MapperSqlTest {
     private Configuration configuration;
 
     @BeforeEach

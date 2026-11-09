@@ -1,14 +1,14 @@
 package com.ai.base.application.service.impl;
 
 import com.ai.base.application.bo.UserMenuBO;
+import com.ai.base.application.bo.UserMenuNodeBO;
 import com.ai.base.application.bo.UserTenantBO;
 import com.ai.base.application.common.BizException;
 import com.ai.base.application.enums.ErrorCodeEnum;
 import com.ai.base.application.model.request.RequestContext;
 import com.ai.base.application.model.request.RequestContextHolder;
+import com.ai.base.application.port.UserMenuPort;
 import com.ai.base.application.service.TenantUserService;
-import com.ai.base.infrastructure.persistence.dto.UserMenuRow;
-import com.ai.base.infrastructure.persistence.mapper.extension.UserMenuExtensionMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,14 +23,14 @@ class UserMenuServiceImplTest {
     private static final String USER_ID = "user-1";
     private static final String TENANT_ID = "tenant-1";
     private TenantUserService tenantUserService;
-    private UserMenuExtensionMapper mapper;
+    private UserMenuPort userMenuPort;
     private UserMenuServiceImpl service;
 
     @BeforeEach
     void setUp() {
         tenantUserService = mock(TenantUserService.class);
-        mapper = mock(UserMenuExtensionMapper.class);
-        service = new UserMenuServiceImpl(tenantUserService, mapper);
+        userMenuPort = mock(UserMenuPort.class);
+        service = new UserMenuServiceImpl(tenantUserService, userMenuPort);
         setContext(TENANT_ID);
         available(TENANT_ID, 1);
     }
@@ -42,7 +42,7 @@ class UserMenuServiceImplTest {
 
     @Test
     void personalSpaceUsesSharedMenusAndHidesTechnicalRootAndEmptyDirectories() {
-        when(mapper.selectPersonalMenus()).thenReturn(List.of(
+        when(userMenuPort.findPersonalMenus()).thenReturn(List.of(
                 row(1, null, "ROOT", 1, true, 0), row(2, 1L, "HOME", 2, true, 1),
                 row(3, 1L, "EMPTY", 1, true, 2), row(4, 1L, "AI", 1, true, 3),
                 row(5, 4L, "MODELS", 2, true, 1)));
@@ -56,16 +56,16 @@ class UserMenuServiceImplTest {
         assertThat(tree.get(1).getChildren()).extracting(UserMenuBO::getMenuCode).containsExactly("MODELS");
         assertThat(tree.get(1).getChildren().get(0).getRoutePath()).isEqualTo("/MODELS");
         assertThat(tree.get(1).getChildren().get(0).getDesc()).isEqualTo("MODELS描述");
-        var order = inOrder(tenantUserService, mapper);
+        var order = inOrder(tenantUserService, userMenuPort);
         order.verify(tenantUserService).requireAvailable(USER_ID, TENANT_ID);
-        order.verify(mapper).selectPersonalMenus();
-        verifyNoMoreInteractions(mapper);
+        order.verify(userMenuPort).findPersonalMenus();
+        verifyNoMoreInteractions(userMenuPort);
     }
 
     @Test
     void enterprisePageGrantAddsAncestorDirectoriesWithoutExposingSiblingPages() {
         available(TENANT_ID, 2);
-        when(mapper.selectTenantMenus(USER_ID, TENANT_ID)).thenReturn(List.of(
+        when(userMenuPort.findTenantMenus(USER_ID, TENANT_ID)).thenReturn(List.of(
                 row(1, null, "ROOT", 1, false, 0), row(2, 1L, "AI", 1, false, 1),
                 row(3, 2L, "MARKET", 1, false, 1), row(4, 3L, "MODELS", 2, true, 1),
                 row(5, 3L, "COMPARE", 2, false, 2), row(6, 1L, "EMPTY_GRANTED", 1, true, 2)));
@@ -78,14 +78,14 @@ class UserMenuServiceImplTest {
         assertThat(tree.get(0).getChildren()).extracting(UserMenuBO::getMenuCode).containsExactly("MARKET");
         assertThat(tree.get(0).getChildren().get(0).getChildren())
                 .extracting(UserMenuBO::getMenuCode).containsExactly("MODELS");
-        verify(mapper).selectTenantMenus(USER_ID, TENANT_ID);
-        verifyNoMoreInteractions(mapper);
+        verify(userMenuPort).findTenantMenus(USER_ID, TENANT_ID);
+        verifyNoMoreInteractions(userMenuPort);
     }
 
     @Test
     void enterpriseWithNoVisiblePageReturnsEmptyTree() {
         available(TENANT_ID, 2);
-        when(mapper.selectTenantMenus(USER_ID, TENANT_ID)).thenReturn(List.of(
+        when(userMenuPort.findTenantMenus(USER_ID, TENANT_ID)).thenReturn(List.of(
                 row(1, null, "ROOT", 1, true, 0), row(2, 1L, "AI", 1, true, 1),
                 row(3, 2L, "MODELS", 2, false, 1)));
 
@@ -94,7 +94,7 @@ class UserMenuServiceImplTest {
 
     @Test
     void childrenOfDisabledOrDeletedAncestorsAreNotPromotedToTopLevel() {
-        when(mapper.selectPersonalMenus()).thenReturn(List.of(
+        when(userMenuPort.findPersonalMenus()).thenReturn(List.of(
                 row(1, null, "ROOT", 1, true, 0), row(3, 2L, "ORPHAN_PAGE", 2, true, 1),
                 row(4, 1L, "HOME", 2, true, 2)));
 
@@ -104,7 +104,7 @@ class UserMenuServiceImplTest {
     @Test
     void authorizedPageUnderUnauthorizedParentPageIsNotExposed() {
         available(TENANT_ID, 2);
-        when(mapper.selectTenantMenus(USER_ID, TENANT_ID)).thenReturn(List.of(
+        when(userMenuPort.findTenantMenus(USER_ID, TENANT_ID)).thenReturn(List.of(
                 row(1, null, "ROOT", 1, false, 0), row(2, 1L, "HOME", 2, false, 1),
                 row(3, 2L, "PROFILE", 2, true, 1)));
 
@@ -113,9 +113,9 @@ class UserMenuServiceImplTest {
 
     @Test
     void pageNodesCanContainVisibleChildPages() {
-        UserMenuRow profile = row(3, 2L, "PROFILE", 2, true, 1);
+        UserMenuNodeBO profile = row(3, 2L, "PROFILE", 2, true, 1);
         profile.setDesc(null);
-        when(mapper.selectPersonalMenus()).thenReturn(List.of(
+        when(userMenuPort.findPersonalMenus()).thenReturn(List.of(
                 row(1, null, "ROOT", 1, true, 0), row(2, 1L, "HOME", 2, true, 1), profile));
 
         assertThat(service.treeCurrent().get(0).getChildren())
@@ -125,7 +125,7 @@ class UserMenuServiceImplTest {
 
     @Test
     void orderingIsStableWithinEveryLevelEvenWhenInputRowsAreUnordered() {
-        when(mapper.selectPersonalMenus()).thenReturn(List.of(
+        when(userMenuPort.findPersonalMenus()).thenReturn(List.of(
                 row(8, 5L, "THIRD", 2, true, 2), row(4, 1L, "SECOND_ROOT", 2, true, 2),
                 row(7, 5L, "SECOND", 2, true, 1), row(6, 5L, "FIRST", 2, true, 1),
                 row(1, null, "ROOT", 1, true, 0), row(5, 1L, "FIRST_ROOT", 1, true, 1)));
@@ -139,16 +139,16 @@ class UserMenuServiceImplTest {
 
     @Test
     void switchedContextUsesNewTenantWithoutReusingPreviousMenuTree() {
-        when(mapper.selectPersonalMenus()).thenReturn(List.of(row(1, null, "PERSONAL_HOME", 2, true, 0)));
+        when(userMenuPort.findPersonalMenus()).thenReturn(List.of(row(1, null, "PERSONAL_HOME", 2, true, 0)));
         available("tenant-2", 2);
-        when(mapper.selectTenantMenus(USER_ID, "tenant-2"))
+        when(userMenuPort.findTenantMenus(USER_ID, "tenant-2"))
                 .thenReturn(List.of(row(2, null, "ENTERPRISE_HOME", 2, true, 0)));
 
         assertThat(service.treeCurrent()).extracting(UserMenuBO::getMenuCode).containsExactly("PERSONAL_HOME");
         setContext("tenant-2");
         assertThat(service.treeCurrent()).extracting(UserMenuBO::getMenuCode).containsExactly("ENTERPRISE_HOME");
         verify(tenantUserService).requireAvailable(USER_ID, "tenant-2");
-        verify(mapper).selectTenantMenus(USER_ID, "tenant-2");
+        verify(userMenuPort).findTenantMenus(USER_ID, "tenant-2");
     }
 
     @Test
@@ -157,7 +157,7 @@ class UserMenuServiceImplTest {
         when(tenantUserService.requireAvailable(USER_ID, TENANT_ID)).thenThrow(failure);
 
         assertThatThrownBy(service::treeCurrent).isSameAs(failure);
-        verifyNoInteractions(mapper);
+        verifyNoInteractions(userMenuPort);
     }
 
     @Test
@@ -166,7 +166,7 @@ class UserMenuServiceImplTest {
         assertThatThrownBy(service::treeCurrent).isInstanceOf(IllegalStateException.class);
         RequestContextHolder.set(new RequestContext("trace-1", "traceparent", USER_ID, null, "session-1", "ai-base"));
         assertThatThrownBy(service::treeCurrent).isInstanceOf(IllegalStateException.class);
-        verifyNoInteractions(tenantUserService, mapper);
+        verifyNoInteractions(tenantUserService, userMenuPort);
     }
 
     @Test
@@ -175,7 +175,7 @@ class UserMenuServiceImplTest {
 
         assertThatThrownBy(service::treeCurrent).isInstanceOfSatisfying(BizException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCodeEnum.TENANT_UNAVAILABLE));
-        verifyNoInteractions(mapper);
+        verifyNoInteractions(userMenuPort);
     }
 
     private void setContext(String tenantId) {
@@ -189,8 +189,8 @@ class UserMenuServiceImplTest {
         when(tenantUserService.requireAvailable(USER_ID, tenantId)).thenReturn(tenant);
     }
 
-    private UserMenuRow row(long id, Long parentId, String code, int type, boolean authorized, int sortNo) {
-        UserMenuRow row = new UserMenuRow();
+    private UserMenuNodeBO row(long id, Long parentId, String code, int type, boolean authorized, int sortNo) {
+        UserMenuNodeBO row = new UserMenuNodeBO();
         row.setId(id);
         row.setParentId(parentId);
         row.setMenuCode(code);
@@ -204,4 +204,3 @@ class UserMenuServiceImplTest {
         return row;
     }
 }
-

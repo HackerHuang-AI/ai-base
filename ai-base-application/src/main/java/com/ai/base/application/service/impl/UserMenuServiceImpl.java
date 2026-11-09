@@ -1,15 +1,15 @@
 package com.ai.base.application.service.impl;
 
 import com.ai.base.application.bo.UserMenuBO;
+import com.ai.base.application.bo.UserMenuNodeBO;
 import com.ai.base.application.bo.UserTenantBO;
 import com.ai.base.application.common.BizException;
 import com.ai.base.application.enums.ErrorCodeEnum;
 import com.ai.base.application.enums.TenantTypeEnum;
+import com.ai.base.application.port.UserMenuPort;
 import com.ai.base.application.service.TenantUserService;
 import com.ai.base.application.service.UserMenuService;
 import com.ai.base.application.utils.CurrentUserUtil;
-import com.ai.base.infrastructure.persistence.dto.UserMenuRow;
-import com.ai.base.infrastructure.persistence.mapper.extension.UserMenuExtensionMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -17,11 +17,11 @@ import java.util.*;
 @Service
 public class UserMenuServiceImpl implements UserMenuService {
     private final TenantUserService tenantUserService;
-    private final UserMenuExtensionMapper userMenuExtensionMapper;
+    private final UserMenuPort userMenuPort;
 
-    public UserMenuServiceImpl(TenantUserService tenantUserService, UserMenuExtensionMapper userMenuExtensionMapper) {
+    public UserMenuServiceImpl(TenantUserService tenantUserService, UserMenuPort userMenuPort) {
         this.tenantUserService = tenantUserService;
-        this.userMenuExtensionMapper = userMenuExtensionMapper;
+        this.userMenuPort = userMenuPort;
     }
 
     @Override
@@ -29,16 +29,16 @@ public class UserMenuServiceImpl implements UserMenuService {
         String userId = CurrentUserUtil.requireUserId();
         String tenantId = CurrentUserUtil.requireTenantId();
         UserTenantBO tenant = tenantUserService.requireAvailable(userId, tenantId);
-        List<UserMenuRow> rows;
+        List<UserMenuNodeBO> rows;
         if (TenantTypeEnum.PERSONAL.getValue().equals(tenant.getTenantType())) {
-            rows = userMenuExtensionMapper.selectPersonalMenus();
+            rows = userMenuPort.findPersonalMenus();
         } else if (TenantTypeEnum.ENTERPRISE.getValue().equals(tenant.getTenantType())) {
-            rows = userMenuExtensionMapper.selectTenantMenus(userId, tenantId);
+            rows = userMenuPort.findTenantMenus(userId, tenantId);
         } else {
             throw new BizException(ErrorCodeEnum.TENANT_UNAVAILABLE);
         }
-        Map<Long, List<UserMenuRow>> byParent = new HashMap<>();
-        rows.stream().sorted(Comparator.comparing(UserMenuRow::getSortNo).thenComparing(UserMenuRow::getId))
+        Map<Long, List<UserMenuNodeBO>> byParent = new HashMap<>();
+        rows.stream().sorted(Comparator.comparing(UserMenuNodeBO::getSortNo).thenComparing(UserMenuNodeBO::getId))
                 .forEach(row -> byParent.computeIfAbsent(row.getParentId(), key -> new ArrayList<>()).add(row));
         List<UserMenuBO> result = new ArrayList<>();
         for (UserMenuBO node : buildChildren(null, byParent)) {
@@ -51,9 +51,9 @@ public class UserMenuServiceImpl implements UserMenuService {
         return result;
     }
 
-    private List<UserMenuBO> buildChildren(Long parentId, Map<Long, List<UserMenuRow>> byParent) {
+    private List<UserMenuBO> buildChildren(Long parentId, Map<Long, List<UserMenuNodeBO>> byParent) {
         List<UserMenuBO> result = new ArrayList<>();
-        for (UserMenuRow row : byParent.getOrDefault(parentId, List.of())) {
+        for (UserMenuNodeBO row : byParent.getOrDefault(parentId, List.of())) {
             if (row.getResourceType() == 2 && !row.isAuthorized()) {
                 continue;
             }
@@ -75,4 +75,3 @@ public class UserMenuServiceImpl implements UserMenuService {
         return result;
     }
 }
-

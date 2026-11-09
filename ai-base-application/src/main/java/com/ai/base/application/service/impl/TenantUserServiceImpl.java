@@ -4,19 +4,19 @@ import com.ai.base.application.bo.BasePageOutBO;
 import com.ai.base.application.bo.UserTenantBO;
 import com.ai.base.application.common.BizException;
 import com.ai.base.application.enums.ErrorCodeEnum;
-import com.ai.base.application.enums.TenantTypeEnum;
+import com.ai.base.application.port.UserTenantRelationPort;
 import com.ai.base.application.service.TenantUserService;
 import com.ai.base.application.utils.CurrentUserUtil;
-import com.ai.base.infrastructure.persistence.dto.UserTenantRow;
-import com.ai.base.infrastructure.persistence.mapper.extension.TenantUserExtensionMapper;
 import org.springframework.stereotype.Service;
+
+import java.util.Optional;
 
 @Service
 public class TenantUserServiceImpl implements TenantUserService {
-    private final TenantUserExtensionMapper tenantUserExtensionMapper;
+    private final UserTenantRelationPort userTenantRelationPort;
 
-    public TenantUserServiceImpl(TenantUserExtensionMapper tenantUserExtensionMapper) {
-        this.tenantUserExtensionMapper = tenantUserExtensionMapper;
+    public TenantUserServiceImpl(UserTenantRelationPort userTenantRelationPort) {
+        this.userTenantRelationPort = userTenantRelationPort;
     }
 
     @Override
@@ -31,30 +31,28 @@ public class TenantUserServiceImpl implements TenantUserService {
         BasePageOutBO<UserTenantBO> result = new BasePageOutBO<>();
         result.setPageNo(pageNo);
         result.setPageSize(pageSize);
-        result.setTotal(tenantUserExtensionMapper.countAvailableByUserId(userId));
-        result.setRecords(tenantUserExtensionMapper.selectAvailablePageByUserId(userId,
-                        (pageNo - 1L) * pageSize, pageSize).stream()
-                .map(this::toTenant)
-                .toList());
+        result.setTotal(userTenantRelationPort.countAvailable(userId));
+        result.setRecords(userTenantRelationPort.pageAvailable(userId, (pageNo - 1L) * pageSize, pageSize));
         return result;
     }
 
     @Override
     public UserTenantBO requireAvailable(String userId, String tenantId) {
-        UserTenantRow row = tenantUserExtensionMapper.selectAvailableByUserIdAndTenantId(userId, tenantId);
-        if (row == null || !row.getTenantId().equals(tenantId) || !tenantId.matches("[a-z0-9_-]+")) {
+        if (!tenantId.matches("[a-z0-9_-]+")) {
             throw new BizException(ErrorCodeEnum.TENANT_UNAVAILABLE);
         }
-        return toTenant(row);
+        return findAvailable(userId, tenantId)
+                .filter(tenant -> tenant.getTenantId().equals(tenantId))
+                .orElseThrow(() -> new BizException(ErrorCodeEnum.TENANT_UNAVAILABLE));
     }
 
-    private UserTenantBO toTenant(UserTenantRow row) {
-        UserTenantBO result = new UserTenantBO();
-        result.setTenantId(row.getTenantId());
-        result.setTenantName(row.getTenantName());
-        result.setTenantType(row.getTenantType());
-        result.setTenantTypeDescription(TenantTypeEnum.descriptionOf(row.getTenantType()));
-        return result;
+    @Override
+    public Optional<UserTenantBO> findAvailable(String userId, String tenantId) {
+        return userTenantRelationPort.findAvailableRelation(userId, tenantId);
+    }
+
+    @Override
+    public Optional<String> findPersonalTenantId(String userId) {
+        return userTenantRelationPort.findPersonalTenantId(userId);
     }
 }
-

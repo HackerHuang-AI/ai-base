@@ -5,24 +5,14 @@ import com.ai.base.application.common.BizException;
 import com.ai.base.application.enums.ErrorCodeEnum;
 import com.ai.base.application.enums.IdentityProviderEnum;
 import com.ai.base.application.enums.IdentityTypeEnum;
-import com.ai.base.application.enums.TenantTypeEnum;
+import com.ai.base.application.port.TenantAccountPort;
+import com.ai.base.application.port.UserAccountPort;
+import com.ai.base.application.port.UserProfileQueryPort;
+import com.ai.base.application.port.UserTenantRelationPort;
 import com.ai.base.application.service.LoginService;
 import com.ai.base.application.service.SmsCodeService;
 import com.ai.base.application.service.UserService;
 import com.ai.base.application.utils.CurrentUserUtil;
-import com.ai.base.infrastructure.persistence.dto.UserProfileRow;
-import com.ai.base.infrastructure.persistence.dto.UserTenantRow;
-import com.ai.base.infrastructure.persistence.entity.TenantEntity;
-import com.ai.base.infrastructure.persistence.entity.UserEntity;
-import com.ai.base.infrastructure.persistence.entity.UserIdentityEntity;
-import com.ai.base.infrastructure.persistence.entity.UserInfoEntity;
-import com.ai.base.infrastructure.persistence.mapper.TenantMapper;
-import com.ai.base.infrastructure.persistence.mapper.UserIdentityMapper;
-import com.ai.base.infrastructure.persistence.mapper.UserInfoMapper;
-import com.ai.base.infrastructure.persistence.mapper.UserMapper;
-import com.ai.base.infrastructure.persistence.mapper.extension.TenantUserExtensionMapper;
-import com.ai.base.infrastructure.persistence.mapper.extension.UserExtensionMapper;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,31 +22,28 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 public class UserServiceImpl implements UserService {
-    private final UserExtensionMapper userExtensionMapper;
-    private final TenantUserExtensionMapper tenantUserExtensionMapper;
-    private final UserMapper userMapper;
-    private final UserInfoMapper userInfoMapper;
-    private final UserIdentityMapper userIdentityMapper;
-    private final TenantMapper tenantMapper;
+    private final UserAccountPort userAccountPort;
+    private final UserProfileQueryPort userProfileQueryPort;
+    private final UserTenantRelationPort userTenantRelationPort;
+    private final TenantAccountPort tenantAccountPort;
     private final SmsCodeService smsCodeService;
     private final LoginService loginService;
 
-    public UserServiceImpl(UserExtensionMapper userExtensionMapper,
-                           TenantUserExtensionMapper tenantUserExtensionMapper,
-                           UserMapper userMapper, UserInfoMapper userInfoMapper,
-                           UserIdentityMapper userIdentityMapper, TenantMapper tenantMapper,
+    public UserServiceImpl(UserAccountPort userAccountPort,
+                           UserProfileQueryPort userProfileQueryPort,
+                           UserTenantRelationPort userTenantRelationPort,
+                           TenantAccountPort tenantAccountPort,
                            SmsCodeService smsCodeService, LoginService loginService) {
-        this.userExtensionMapper = userExtensionMapper;
-        this.tenantUserExtensionMapper = tenantUserExtensionMapper;
-        this.userMapper = userMapper;
-        this.userInfoMapper = userInfoMapper;
-        this.userIdentityMapper = userIdentityMapper;
-        this.tenantMapper = tenantMapper;
+        this.userAccountPort = userAccountPort;
+        this.userProfileQueryPort = userProfileQueryPort;
+        this.userTenantRelationPort = userTenantRelationPort;
+        this.tenantAccountPort = tenantAccountPort;
         this.smsCodeService = smsCodeService;
         this.loginService = loginService;
     }
@@ -66,11 +53,9 @@ public class UserServiceImpl implements UserService {
         String userId = CurrentUserUtil.requireUserId();
         PersonalUserProfileBO result = new PersonalUserProfileBO();
         copyProfile(getProfile(userId), result);
-        UserTenantRow tenant = tenantUserExtensionMapper.selectPersonalByUserId(userId);
-        if (tenant == null) {
-            throw new BizException(ErrorCodeEnum.PERSONAL_TENANT_NOT_FOUND);
-        }
-        result.setPersonalTenant(toTenant(tenant));
+        UserTenantBO tenant = userTenantRelationPort.findPersonalRelation(userId)
+                .orElseThrow(() -> new BizException(ErrorCodeEnum.PERSONAL_TENANT_NOT_FOUND));
+        result.setPersonalTenant(tenant);
         return result;
     }
 
@@ -78,35 +63,18 @@ public class UserServiceImpl implements UserService {
     @Transactional(rollbackFor = Exception.class)
     public void updateCurrentProfile(PersonalUserUpdateBO update) {
         String userId = CurrentUserUtil.requireUserId();
-        UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
-                .eq(UserEntity::getUserId, userId));
-        if (user == null) {
-            throw new BizException(ErrorCodeEnum.USER_NOT_FOUND);
-        }
+        UserAccountBO user = userAccountPort.findUser(userId)
+                .orElseThrow(() -> new BizException(ErrorCodeEnum.USER_NOT_FOUND));
         user.setEmail(update.getEmail());
         user.setName(update.getName());
-        if (userMapper.updateById(user) == 0) {
+        if (!userAccountPort.updateAccount(user)) {
             throw new BizException(ErrorCodeEnum.DATA_VERSION_CONFLICT);
         }
-
-        UserInfoEntity userInfo = userInfoMapper.selectOne(new LambdaQueryWrapper<UserInfoEntity>()
-                .eq(UserInfoEntity::getUserId, userId));
-        if (userInfo == null) {
-            userInfo = new UserInfoEntity();
-            userInfo.setUserId(userId);
-            userInfo.setAvatarUrl(update.getAvatarUrl());
-            userInfo.setJobNumber(update.getJobNumber());
-            if (userInfoMapper.insert(userInfo) == 0) {
-                throw new BizException(ErrorCodeEnum.DATA_VERSION_CONFLICT);
-            }
-        } else {
-            userInfo.setAvatarUrl(update.getAvatarUrl());
-            userInfo.setJobNumber(update.getJobNumber());
-            if (userInfoMapper.updateById(userInfo) == 0) {
-                throw new BizException(ErrorCodeEnum.DATA_VERSION_CONFLICT);
-            }
-        }
-
+        UserInfoBO userInfo = new UserInfoBO();
+        userInfo.setUserId(userId);
+        userInfo.setAvatarUrl(update.getAvatarUrl());
+        userInfo.setJobNumber(update.getJobNumber());
+        userAccountPort.upsertUserInfo(userInfo);
     }
 
     @Override
@@ -116,17 +84,18 @@ public class UserServiceImpl implements UserService {
             throw new BizException(ErrorCodeEnum.PARAMETER_REQUIRED);
         }
         String userId = CurrentUserUtil.requireUserId();
-        UserEntity user = getActiveUser(userId);
+        UserAccountBO user = getActiveUser(userId);
         if (update.getUsername().equals(user.getUsername())) {
             return;
         }
         ensureIdentityAvailable(IdentityTypeEnum.ACCOUNT.getValue(), IdentityProviderEnum.LOCAL.getValue(), update.getUsername());
         try {
             user.setUsername(update.getUsername());
-            if (userMapper.updateById(user) == 0) {
+            if (!userAccountPort.updateAccount(user)) {
                 throw new BizException(ErrorCodeEnum.DATA_VERSION_CONFLICT);
             }
-            updateIdentity(userId, IdentityTypeEnum.ACCOUNT.getValue(), IdentityProviderEnum.LOCAL.getValue(), update.getUsername());
+            userAccountPort.upsertIdentity(userId, IdentityTypeEnum.ACCOUNT.getValue(),
+                    IdentityProviderEnum.LOCAL.getValue(), update.getUsername());
         } catch (DuplicateKeyException exception) {
             throw new BizException(ErrorCodeEnum.CREDENTIAL_ALREADY_IN_USE);
         }
@@ -140,7 +109,7 @@ public class UserServiceImpl implements UserService {
             throw new BizException(ErrorCodeEnum.PARAMETER_REQUIRED);
         }
         String userId = CurrentUserUtil.requireUserId();
-        UserEntity user = getActiveUser(userId);
+        UserAccountBO user = getActiveUser(userId);
         if (update.getMobile().equals(user.getMobile())) {
             return;
         }
@@ -148,10 +117,11 @@ public class UserServiceImpl implements UserService {
         smsCodeService.consumeLoginCode(update.getMobile(), update.getSmsCode());
         try {
             user.setMobile(update.getMobile());
-            if (userMapper.updateById(user) == 0) {
+            if (!userAccountPort.updateAccount(user)) {
                 throw new BizException(ErrorCodeEnum.DATA_VERSION_CONFLICT);
             }
-            updateIdentity(userId, IdentityTypeEnum.MOBILE.getValue(), IdentityProviderEnum.SMS.getValue(), update.getMobile());
+            userAccountPort.upsertIdentity(userId, IdentityTypeEnum.MOBILE.getValue(),
+                    IdentityProviderEnum.SMS.getValue(), update.getMobile());
         } catch (DuplicateKeyException exception) {
             throw new BizException(ErrorCodeEnum.CREDENTIAL_ALREADY_IN_USE);
         }
@@ -163,59 +133,47 @@ public class UserServiceImpl implements UserService {
         if (!StringUtils.hasText(update.getTenantName())) {
             throw new BizException(ErrorCodeEnum.PARAMETER_REQUIRED);
         }
-        String tenantId = tenantUserExtensionMapper.selectPersonalTenantId(CurrentUserUtil.requireUserId());
-        TenantEntity tenant = tenantId == null ? null : tenantMapper.selectOne(new LambdaQueryWrapper<TenantEntity>()
-                .eq(TenantEntity::getTenantId, tenantId)
-                .eq(TenantEntity::getTenantType, TenantTypeEnum.PERSONAL.getValue())
-                .eq(TenantEntity::getStatus, 1));
-        if (tenant == null) {
-            throw new BizException(ErrorCodeEnum.PERSONAL_TENANT_NOT_FOUND);
-        }
-        tenant.setTenantName(update.getTenantName());
-        if (tenantMapper.updateById(tenant) == 0) {
-            throw new BizException(ErrorCodeEnum.DATA_VERSION_CONFLICT);
-        }
+        String tenantId = userTenantRelationPort.findPersonalTenantId(CurrentUserUtil.requireUserId())
+                .orElseThrow(() -> new BizException(ErrorCodeEnum.PERSONAL_TENANT_NOT_FOUND));
+        tenantAccountPort.findPersonalTenant(tenantId)
+                .orElseThrow(() -> new BizException(ErrorCodeEnum.PERSONAL_TENANT_NOT_FOUND));
+        tenantAccountPort.renameTenant(tenantId, update.getTenantName());
     }
 
     @Override
     public List<UserProfileBO> listProfiles(List<String> userIds) {
         validateUserIds(userIds);
-        Map<String, UserProfileRow> profilesByUserId = userExtensionMapper.selectByUserIds(userIds).stream()
-                .collect(Collectors.toMap(UserProfileRow::getUserId, Function.identity()));
+        Map<String, UserProfileBO> profilesByUserId = userProfileQueryPort.findProfilesByUserIds(userIds).stream()
+                .collect(Collectors.toMap(UserProfileBO::getUserId, Function.identity()));
         return userIds.stream().distinct()
                 .map(profilesByUserId::get)
-                .filter(java.util.Objects::nonNull)
-                .map(this::toProfile)
+                .filter(Objects::nonNull)
                 .toList();
     }
 
     @Override
     public List<UserWithTenantsBO> listProfilesWithTenants(List<String> userIds) {
         validateUserIds(userIds);
-        Map<String, List<UserTenantBO>> tenantsByUserId = tenantUserExtensionMapper.selectByUserIds(userIds).stream()
-                .collect(Collectors.groupingBy(UserTenantRow::getUserId,
-                        Collectors.mapping(this::toTenant, Collectors.toList())));
-        Map<String, UserProfileRow> profilesByUserId = userExtensionMapper.selectByUserIds(userIds).stream()
-                .collect(Collectors.toMap(UserProfileRow::getUserId, Function.identity()));
+        Map<String, List<UserTenantBO>> tenantsByUserId = userTenantRelationPort.listRelationsGroupedByUserIds(userIds);
+        Map<String, UserProfileBO> profilesByUserId = userProfileQueryPort.findProfilesByUserIds(userIds).stream()
+                .collect(Collectors.toMap(UserProfileBO::getUserId, Function.identity()));
         return userIds.stream().distinct()
                 .map(profilesByUserId::get)
-                .filter(java.util.Objects::nonNull)
-                .map(row -> toProfileWithTenants(row, tenantsByUserId))
+                .filter(Objects::nonNull)
+                .map(profile -> toProfileWithTenants(profile,
+                        tenantsByUserId.getOrDefault(profile.getUserId(), List.of())))
                 .toList();
     }
 
     @Override
     public BasePageOutBO<UserProfileBO> adminUserPage(AdminUserQueryBO query) {
-        UserEntity user = toUserEntity(query);
-        UserInfoEntity userInfo = toUserInfoEntity(query);
         BasePageOutBO<UserProfileBO> result = new BasePageOutBO<>();
-        result.setTotal(userExtensionMapper.countByQuery(user, userInfo, query.getCreatedEndTime()));
+        result.setTotal(userProfileQueryPort.countUsers(query));
         result.setPageNo(Math.toIntExact(query.getPageNo()));
         result.setPageSize(Math.toIntExact(query.getPageSize()));
-        result.setRecords(userExtensionMapper.selectPageByQuery(user, userInfo, query.getCreatedEndTime(),
-                        (query.getPageNo() - 1) * query.getPageSize(), query.getPageSize()).stream()
-                .map(this::toProfile)
-                .toList());
+        result.setRecords(userProfileQueryPort.pageUsers(query,
+                        (query.getPageNo() - 1) * query.getPageSize(),
+                        Math.toIntExact(query.getPageSize())));
         return result;
     }
 
@@ -228,50 +186,20 @@ public class UserServiceImpl implements UserService {
         });
     }
 
-    private UserEntity getActiveUser(String userId) {
-        UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
-                .eq(UserEntity::getUserId, userId)
-                .eq(UserEntity::getStatus, 1));
-        if (user == null) {
-            throw new BizException(ErrorCodeEnum.USER_NOT_FOUND);
-        }
-        return user;
+    private UserAccountBO getActiveUser(String userId) {
+        return userAccountPort.findActiveUser(userId)
+                .orElseThrow(() -> new BizException(ErrorCodeEnum.USER_NOT_FOUND));
     }
 
     private void ensureIdentityAvailable(String identityType, String identityProvider, String identityValue) {
-        UserIdentityEntity identity = userIdentityMapper.selectOne(new LambdaQueryWrapper<UserIdentityEntity>()
-                .eq(UserIdentityEntity::getIdentityType, identityType)
-                .eq(UserIdentityEntity::getIdentityProvider, identityProvider)
-                .eq(UserIdentityEntity::getIdentityValue, identityValue));
-        if (identity != null) {
+        if (userAccountPort.findIdentity(identityType, identityProvider, identityValue).isPresent()) {
             throw new BizException(ErrorCodeEnum.CREDENTIAL_ALREADY_IN_USE);
         }
     }
 
-    private void updateIdentity(String userId, String identityType, String identityProvider, String identityValue) {
-        UserIdentityEntity identity = userIdentityMapper.selectOne(new LambdaQueryWrapper<UserIdentityEntity>()
-                .eq(UserIdentityEntity::getUserId, userId)
-                .eq(UserIdentityEntity::getIdentityType, identityType)
-                .eq(UserIdentityEntity::getIdentityProvider, identityProvider));
-        if (identity == null) {
-            identity = new UserIdentityEntity();
-            identity.setUserId(userId);
-            identity.setIdentityType(identityType);
-            identity.setIdentityProvider(identityProvider);
-            identity.setIdentityValue(identityValue);
-            userIdentityMapper.insert(identity);
-        } else {
-            identity.setIdentityValue(identityValue);
-            if (userIdentityMapper.updateById(identity) == 0) {
-                throw new BizException(ErrorCodeEnum.DATA_VERSION_CONFLICT);
-            }
-        }
-    }
-
     private UserProfileBO getProfile(String userId) {
-        return userExtensionMapper.selectByUserIds(List.of(userId)).stream()
+        return userProfileQueryPort.findProfilesByUserIds(List.of(userId)).stream()
                 .findFirst()
-                .map(this::toProfile)
                 .orElseThrow(() -> new BizException(ErrorCodeEnum.USER_NOT_FOUND));
     }
 
@@ -281,51 +209,11 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    private UserEntity toUserEntity(AdminUserQueryBO query) {
-        UserEntity user = new UserEntity();
-        user.setUserId(query.getUserId());
-        user.setMobile(query.getMobile());
-        user.setEmail(query.getEmail());
-        user.setUsername(query.getUsername());
-        user.setName(query.getName());
-        user.setStatus(query.getStatus());
-        user.setCreateTime(query.getCreatedStartTime());
-        return user;
-    }
-
-    private UserInfoEntity toUserInfoEntity(AdminUserQueryBO query) {
-        UserInfoEntity userInfo = new UserInfoEntity();
-        userInfo.setAvatarUrl(query.getAvatarUrl());
-        userInfo.setJobNumber(query.getJobNumber());
-        return userInfo;
-    }
-
-    private UserWithTenantsBO toProfileWithTenants(UserProfileRow row, Map<String, List<UserTenantBO>> tenantsByUserId) {
-        UserWithTenantsBO profile = new UserWithTenantsBO();
-        copyProfile(toProfile(row), profile);
-        profile.setTenants(tenantsByUserId.getOrDefault(row.getUserId(), List.of()));
-        return profile;
-    }
-
-    private UserTenantBO toTenant(UserTenantRow row) {
-        UserTenantBO tenant = new UserTenantBO();
-        tenant.setTenantId(row.getTenantId());
-        tenant.setTenantName(row.getTenantName());
-        tenant.setTenantType(row.getTenantType());
-        tenant.setTenantTypeDescription(TenantTypeEnum.descriptionOf(row.getTenantType()));
-        return tenant;
-    }
-
-    private UserProfileBO toProfile(UserProfileRow row) {
-        UserProfileBO profile = new UserProfileBO();
-        profile.setUserId(row.getUserId());
-        profile.setMobile(row.getMobile());
-        profile.setEmail(row.getEmail());
-        profile.setUsername(row.getUsername());
-        profile.setName(row.getName());
-        profile.setAvatarUrl(row.getAvatarUrl());
-        profile.setJobNumber(row.getJobNumber());
-        return profile;
+    private UserWithTenantsBO toProfileWithTenants(UserProfileBO profile, List<UserTenantBO> tenants) {
+        UserWithTenantsBO result = new UserWithTenantsBO();
+        copyProfile(profile, result);
+        result.setTenants(tenants);
+        return result;
     }
 
     private void copyProfile(UserProfileBO source, UserProfileBO target) {
@@ -338,4 +226,3 @@ public class UserServiceImpl implements UserService {
         target.setJobNumber(source.getJobNumber());
     }
 }
-

@@ -68,6 +68,7 @@
         <dependency>
             <groupId>com.ai.base</groupId>
             <artifactId>ai-base-infrastructure</artifactId>
+            <!-- 仅用于运行时装配：infrastructure 是 application 端口的实现载体 -->
         </dependency>
         <dependency>
             <groupId>com.ai.base</groupId>

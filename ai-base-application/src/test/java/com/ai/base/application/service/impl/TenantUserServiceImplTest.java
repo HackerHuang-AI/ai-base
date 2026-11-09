@@ -3,15 +3,16 @@ package com.ai.base.application.service.impl;
 import com.ai.base.application.bo.UserTenantBO;
 import com.ai.base.application.common.BizException;
 import com.ai.base.application.enums.ErrorCodeEnum;
+import com.ai.base.application.enums.TenantTypeEnum;
 import com.ai.base.application.model.request.RequestContext;
 import com.ai.base.application.model.request.RequestContextHolder;
-import com.ai.base.infrastructure.persistence.dto.UserTenantRow;
-import com.ai.base.infrastructure.persistence.mapper.extension.TenantUserExtensionMapper;
+import com.ai.base.application.port.UserTenantRelationPort;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -19,13 +20,13 @@ import static org.mockito.Mockito.*;
 
 class TenantUserServiceImplTest {
     private static final String USER_ID = "user-1";
-    private TenantUserExtensionMapper mapper;
+    private UserTenantRelationPort relationPort;
     private TenantUserServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        mapper = mock(TenantUserExtensionMapper.class);
-        service = new TenantUserServiceImpl(mapper);
+        relationPort = mock(UserTenantRelationPort.class);
+        service = new TenantUserServiceImpl(relationPort);
         RequestContextHolder.set(new RequestContext("trace-1", "traceparent", USER_ID, "tenant-1", "session-1", "ai-base"));
     }
 
@@ -35,19 +36,11 @@ class TenantUserServiceImplTest {
     }
 
     @Test
-    void pageCurrentUsesContextUserAndPreservesMapperOrderWithBusinessFields() {
-        UserTenantRow enterprise = new UserTenantRow();
-        enterprise.setUserId(USER_ID);
-        enterprise.setTenantId("tenant-z");
-        enterprise.setTenantName("企业空间");
-        enterprise.setTenantType(2);
-        UserTenantRow personal = new UserTenantRow();
-        personal.setUserId(USER_ID);
-        personal.setTenantId("tenant-a");
-        personal.setTenantName("个人空间");
-        personal.setTenantType(1);
-        when(mapper.countAvailableByUserId(USER_ID)).thenReturn(4_294_967_296L);
-        when(mapper.selectAvailablePageByUserId(USER_ID, 2L, 2)).thenReturn(List.of(enterprise, personal));
+    void pageCurrentUsesContextUserAndPreservesPortOrderWithBusinessFields() {
+        UserTenantBO enterprise = tenant("tenant-z", "企业空间", 2);
+        UserTenantBO personal = tenant("tenant-a", "个人空间", 1);
+        when(relationPort.countAvailable(USER_ID)).thenReturn(4_294_967_296L);
+        when(relationPort.pageAvailable(USER_ID, 2L, 2)).thenReturn(List.of(enterprise, personal));
 
         var result = service.pageCurrent(2, 2);
 
@@ -60,23 +53,23 @@ class TenantUserServiceImplTest {
         assertThat(result.getRecords()).extracting(UserTenantBO::getTenantTypeDescription).containsExactly("企业租户", "个人空间");
         assertThat(UserTenantBO.class.getDeclaredFields()).extracting("name")
                 .containsExactly("tenantId", "tenantName", "tenantType", "tenantTypeDescription");
-        verify(mapper).countAvailableByUserId(USER_ID);
-        verify(mapper).selectAvailablePageByUserId(USER_ID, 2L, 2);
-        verifyNoMoreInteractions(mapper);
+        verify(relationPort).countAvailable(USER_ID);
+        verify(relationPort).pageAvailable(USER_ID, 2L, 2);
+        verifyNoMoreInteractions(relationPort);
     }
 
     @Test
-    void pageCurrentWithoutContextDoesNotQueryMapper() {
+    void pageCurrentWithoutContextDoesNotQueryPort() {
         RequestContextHolder.clear();
 
         assertThatThrownBy(() -> service.pageCurrent(1, 10)).isInstanceOf(IllegalStateException.class);
 
-        verifyNoInteractions(mapper);
+        verifyNoInteractions(relationPort);
     }
 
     @Test
     void pageCurrentUsesLongOffsetForMaximumPageNumber() {
-        when(mapper.selectAvailablePageByUserId(USER_ID, 214_748_364_600L, 100)).thenReturn(List.of());
+        when(relationPort.pageAvailable(USER_ID, 214_748_364_600L, 100)).thenReturn(List.of());
 
         var result = service.pageCurrent(Integer.MAX_VALUE, 100);
 
@@ -84,7 +77,7 @@ class TenantUserServiceImplTest {
         assertThat(result.getPageSize()).isEqualTo(100);
         assertThat(result.getTotal()).isZero();
         assertThat(result.getRecords()).isEmpty();
-        verify(mapper).selectAvailablePageByUserId(USER_ID, 214_748_364_600L, 100);
+        verify(relationPort).pageAvailable(USER_ID, 214_748_364_600L, 100);
     }
 
     @Test
@@ -94,7 +87,7 @@ class TenantUserServiceImplTest {
                     .isInstanceOfSatisfying(BizException.class,
                             e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCodeEnum.PAGE_NUMBER_OUT_OF_RANGE));
         }
-        verifyNoInteractions(mapper);
+        verifyNoInteractions(relationPort);
     }
 
     @Test
@@ -104,31 +97,27 @@ class TenantUserServiceImplTest {
                     .isInstanceOfSatisfying(BizException.class,
                             e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCodeEnum.PAGE_SIZE_OUT_OF_RANGE));
         }
-        verifyNoInteractions(mapper);
+        verifyNoInteractions(relationPort);
     }
 
     @Test
     void pageCurrentAcceptsInclusivePageSizeBoundaries() {
         for (int pageSize : new int[]{1, 100}) {
-            when(mapper.selectAvailablePageByUserId(USER_ID, 0L, pageSize)).thenReturn(List.of());
+            when(relationPort.pageAvailable(USER_ID, 0L, pageSize)).thenReturn(List.of());
 
             var result = service.pageCurrent(1, pageSize);
 
             assertThat(result.getPageNo()).isEqualTo(1);
             assertThat(result.getPageSize()).isEqualTo(pageSize);
             assertThat(result.getRecords()).isEmpty();
-            verify(mapper).selectAvailablePageByUserId(USER_ID, 0L, pageSize);
+            verify(relationPort).pageAvailable(USER_ID, 0L, pageSize);
         }
     }
 
     @Test
     void requireAvailableUsesExplicitUserAndReturnsBusinessObject() {
-        UserTenantRow row = new UserTenantRow();
-        row.setUserId("user-2");
-        row.setTenantId("tenant-2");
-        row.setTenantName("个人空间");
-        row.setTenantType(1);
-        when(mapper.selectAvailableByUserIdAndTenantId("user-2", "tenant-2")).thenReturn(row);
+        when(relationPort.findAvailableRelation("user-2", "tenant-2"))
+                .thenReturn(Optional.of(tenant("tenant-2", "个人空间", 1)));
 
         UserTenantBO result = service.requireAvailable("user-2", "tenant-2");
 
@@ -136,43 +125,28 @@ class TenantUserServiceImplTest {
         assertThat(result.getTenantName()).isEqualTo("个人空间");
         assertThat(result.getTenantType()).isEqualTo(1);
         assertThat(result.getTenantTypeDescription()).isEqualTo("个人空间");
-        verify(mapper).selectAvailableByUserIdAndTenantId("user-2", "tenant-2");
-        verifyNoMoreInteractions(mapper);
+        verify(relationPort).findAvailableRelation("user-2", "tenant-2");
+        verifyNoMoreInteractions(relationPort);
     }
 
     @Test
-    void requireAvailableRejectsCaseInsensitiveDatabaseMatches() {
-        UserTenantRow row = new UserTenantRow();
-        row.setTenantId("ten_01a0ec2d-1234");
-        for (String tenantId : new String[]{"TEN_01A0EC2D-1234", "ten_01A0ec2d-1234", "ten_01a0ec2d-1234 "}) {
-            when(mapper.selectAvailableByUserIdAndTenantId(USER_ID, tenantId)).thenReturn(row);
-
+    void requireAvailableRejectsNonCanonicalTenantIdsBeforeQuerying() {
+        for (String tenantId : new String[]{"TEN_01A0EC2D-1234", "ten_01A0ec2d-1234", "ten_01a0ec2d-1234 ",
+                "TEN_01a0ec2d-1234", "ten_空间", "ten.test"}) {
             assertThatThrownBy(() -> service.requireAvailable(USER_ID, tenantId))
                     .isInstanceOfSatisfying(BizException.class,
                             e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCodeEnum.TENANT_UNAVAILABLE));
         }
-    }
-
-    @Test
-    void requireAvailableRejectsNonCanonicalStoredTenantIds() {
-        for (String tenantId : new String[]{"TEN_01a0ec2d-1234", "ten_空间", "ten.test"}) {
-            UserTenantRow row = new UserTenantRow();
-            row.setTenantId(tenantId);
-            when(mapper.selectAvailableByUserIdAndTenantId(USER_ID, tenantId)).thenReturn(row);
-
-            assertThatThrownBy(() -> service.requireAvailable(USER_ID, tenantId))
-                    .isInstanceOfSatisfying(BizException.class,
-                            e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCodeEnum.TENANT_UNAVAILABLE));
-        }
+        verifyNoInteractions(relationPort);
     }
 
     @Test
     void requireAvailableAcceptsLowercaseIdWithDigitsUnderscoresAndHyphens() {
-        UserTenantRow row = new UserTenantRow();
-        row.setTenantId("ten_01a0ec2d-1234");
-        when(mapper.selectAvailableByUserIdAndTenantId(USER_ID, row.getTenantId())).thenReturn(row);
+        when(relationPort.findAvailableRelation(USER_ID, "ten_01a0ec2d-1234"))
+                .thenReturn(Optional.of(tenant("ten_01a0ec2d-1234", "个人空间", 1)));
 
-        assertThat(service.requireAvailable(USER_ID, row.getTenantId()).getTenantId()).isEqualTo(row.getTenantId());
+        assertThat(service.requireAvailable(USER_ID, "ten_01a0ec2d-1234").getTenantId())
+                .isEqualTo("ten_01a0ec2d-1234");
     }
 
     @Test
@@ -182,8 +156,23 @@ class TenantUserServiceImplTest {
                     assertThat(e.getErrorCode()).isEqualTo(ErrorCodeEnum.TENANT_UNAVAILABLE);
                     assertThat(e.getErrorCode().getCode()).isEqualTo("1401001");
                 });
-        verify(mapper).selectAvailableByUserIdAndTenantId(USER_ID, "unavailable");
-        verifyNoMoreInteractions(mapper);
+        verify(relationPort).findAvailableRelation(USER_ID, "unavailable");
+        verifyNoMoreInteractions(relationPort);
+    }
+
+    @Test
+    void tenantTypeDescriptionsMapPersonalAndEnterpriseSpaces() {
+        assertThat(TenantTypeEnum.descriptionOf(1)).isEqualTo("个人空间");
+        assertThat(TenantTypeEnum.descriptionOf(2)).isEqualTo("企业租户");
+    }
+
+    private UserTenantBO tenant(String tenantId, String tenantName, Integer tenantType) {
+        UserTenantBO tenant = new UserTenantBO();
+        tenant.setTenantId(tenantId);
+        tenant.setTenantName(tenantName);
+        tenant.setTenantType(tenantType);
+        // 端口契约：BO 已含租户类型描述（由 infra 的 toTenant 用 TenantTypeEnum 填充）
+        tenant.setTenantTypeDescription(TenantTypeEnum.descriptionOf(tenantType));
+        return tenant;
     }
 }
-

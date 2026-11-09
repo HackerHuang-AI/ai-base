@@ -1,7 +1,6 @@
-package com.ai.base.application.config;
+package com.ai.base.infrastructure.config;
 
-import com.ai.base.application.config.param.ThreadPoolParam;
-import com.ai.base.infrastructure.config.NacosConfig;
+import com.ai.base.infrastructure.config.param.ThreadPoolParam;
 import com.ai.base.infrastructure.enums.NacosDataIdEnum;
 import com.alibaba.nacos.api.config.listener.Listener;
 import jakarta.annotation.PostConstruct;
